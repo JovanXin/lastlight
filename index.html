@@ -35,6 +35,7 @@
     </div>
     <div class="top-actions">
       <span class="offline-pill" id="network-pill" hidden>offline</span>
+      <button class="btn" id="btn-trips" type="button">Trips</button>
       <button class="btn" id="btn-import" type="button">Import GPX</button>
       <button class="btn ghost" id="btn-export" type="button">Export GPX</button>
       <button class="btn ghost danger" id="btn-clear" type="button">Clear</button>
@@ -62,16 +63,6 @@
         </div>
       </section>
 
-      <section class="card">
-        <h2 class="card-title">Saved trips</h2>
-        <div class="save-row">
-          <input type="text" id="trip-name" placeholder="Trip name" />
-          <button class="btn small primary" id="btn-save-trip" type="button">Save</button>
-        </div>
-        <ul class="trip-list" id="trip-list">
-          <li class="empty">No saved trips yet.</li>
-        </ul>
-      </section>
 
       <section class="card">
         <h2 class="card-title">When</h2>
@@ -110,7 +101,26 @@
           <span class="field-label">Moving ratio <b id="moving-ratio-out">85%</b></span>
           <input type="range" id="moving-ratio" min="0.5" max="1" step="0.01" value="0.85" />
         </label>
-        <p class="hint">Moving ratio is the share of elapsed time you spend actually walking — breaks, photos and route-finding live in the rest.</p>
+        <label class="field">
+          <span class="field-label">Group pace <b id="group-out">solo</b></span>
+          <input type="range" id="group-factor" min="0.5" max="1" step="0.01" value="1" />
+        </label>
+        <p class="hint">Moving ratio is the share of elapsed time you spend actually walking — breaks, photos and route-finding live in the rest. Group pace plans for the slowest member.</p>
+      </section>
+
+      <section class="card" id="conditions-card">
+        <h2 class="card-title">Conditions <span class="pill" id="conditions-status">—</span></h2>
+        <div class="cond-main">
+          <span class="cond-icon" id="cond-icon">·</span>
+          <span class="cond-temp" id="cond-temp">—</span>
+          <span class="cond-label" id="cond-label">no forecast</span>
+        </div>
+        <dl class="kv">
+          <div><dt>Rain chance</dt><dd id="cond-rain">—</dd></div>
+          <div><dt>Peak wind</dt><dd id="cond-wind">—</dd></div>
+          <div><dt>Feels like</dt><dd id="cond-feels">—</dd></div>
+        </dl>
+        <p class="hint" id="cond-note"></p>
       </section>
 
       <section class="card">
@@ -189,21 +199,6 @@
         </div>
       </section>
 
-      <section class="card" id="conditions-card">
-        <h2 class="card-title">Conditions <span class="pill" id="conditions-status">\u2014</span></h2>
-        <div class="cond-main">
-          <span class="cond-icon" id="cond-icon">\u00b7</span>
-          <span class="cond-temp" id="cond-temp">\u2014</span>
-          <span class="cond-label" id="cond-label">no forecast</span>
-        </div>
-        <dl class="kv">
-          <div><dt>Rain chance</dt><dd id="cond-rain">\u2014</dd></div>
-          <div><dt>Peak wind</dt><dd id="cond-wind">\u2014</dd></div>
-          <div><dt>Feels like</dt><dd id="cond-feels">\u2014</dd></div>
-        </dl>
-        <p class="hint" id="cond-note"></p>
-      </section>
-
       <section class="card grow">
         <h2 class="card-title">Bailout radar <span class="pill" id="bailout-count">0</span></h2>
         <p class="hint">Ways off the hill from your current position, ranked by time to reach them before the light goes.</p>
@@ -227,6 +222,22 @@
     <span id="status">Ready.</span>
     <span class="status-right">Lastlight · offline-first · <a href="https://github.com/JovanXin/lastlight" target="_blank" rel="noopener">source</a></span>
   </footer>
+
+  <div class="modal" id="trips-modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Trip library">
+      <header class="modal-head">
+        <h2>Trip library</h2>
+        <button class="btn small ghost" id="trips-close" type="button">Close</button>
+      </header>
+      <div class="save-row">
+        <input type="text" id="trip-name" placeholder="Trip name" />
+        <button class="btn small primary" id="btn-save-trip" type="button">Save current</button>
+      </div>
+      <ul class="trip-list" id="trip-list">
+        <li class="empty">No saved trips yet.</li>
+      </ul>
+    </div>
+  </div>
 </div>
 <script type="module" src="src/app.js"></script>
 </body>

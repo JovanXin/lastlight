@@ -36,6 +36,7 @@ const store = createStore({
   mode: DEFAULT_ROUTE.mode,
   startTime: todayAt(8),
   pace: { speedFactor: 1, movingRatio: 0.85 },
+  groupFactor: 1,
   safetyMargin: 30,
   useCivil: true,
   distanceNow: 0,
@@ -59,13 +60,21 @@ let simPlan = null;
 // ---------------------------------------------------------------------------
 // Derivations
 // ---------------------------------------------------------------------------
+// Pace actually used for planning: the walker\u2019s pace, then scaled down to
+// whatever the slowest person in the group can hold.
+function effectivePace(s) {
+  const base = s.pace || {};
+  const factor = (Number(base.speedFactor) || 1) * (s.groupFactor == null ? 1 : Number(s.groupFactor));
+  return sanitizePace(Object.assign({}, base, { speedFactor: factor }));
+}
+
 function computeDerived(s) {
   const raw = buildProfile(s.track, { smoothWindow: 3 });
   const profile = resample(raw, 20);
   const start = profile.points[0] || { lat: 0, lon: 0, ele: 0 };
   const sun = sunTimes(s.startTime, start.lat, start.lon);
   const dusk = s.useCivil ? (sun.civilDusk || sun.sunset) : (sun.sunset || sun.civilDusk);
-  const pace = sanitizePace(s.pace);
+  const pace = effectivePace(s);
   const outbound = buildSchedule(profile, pace);
   const inbound = buildSchedule(profile, pace, { reverse: true });
 
@@ -127,7 +136,7 @@ function nearestRouteDist(profile, point) {
 // Scenario clock for a position: the planned arrival time, offset by however
 // far behind (or ahead of) schedule the hiker is.
 function clockForPosition(s, distanceM) {
-  const outbound = buildSchedule(resample(buildProfile(s.track, { smoothWindow: 3 }), 20), sanitizePace(s.pace));
+  const outbound = buildSchedule(resample(buildProfile(s.track, { smoothWindow: 3 }), 20), effectivePace(s));
   const mins = minutesAtDistance(outbound, distanceM) + (s.delay || 0);
   return new Date(s.startTime.getTime() + mins * 60000);
 }
@@ -172,7 +181,7 @@ function renderHUD(s) {
 
 function currentSpeed(s) {
   const grade = derived.outbound.gradeAt ? derived.outbound.gradeAt(s.distanceNow) : 0;
-  return (6 * Math.exp(-3.5 * Math.abs(grade + 0.05)) * sanitizePace(s.pace).speedFactor).toFixed(1) + " km/h";
+  return (6 * Math.exp(-3.5 * Math.abs(grade + 0.05)) * effectivePace(s).speedFactor).toFixed(1) + " km/h";
 }
 
 function renderVerdict(s) {
@@ -492,6 +501,11 @@ function wire() {
   attachRange($("moving-ratio"), $("moving-ratio-out"), function (v) { return Math.round(v * 100) + "%"; }, function (v) {
     store.set({ pace: Object.assign({}, store.get().pace, { movingRatio: v }) });
   });
+  attachRange($("group-factor"), $("group-out"), function (v) {
+    return v >= 0.999 ? "solo" : Math.round(v * 100) + "% of best";
+  }, function (v) {
+    store.set({ groupFactor: v });
+  });
   Array.prototype.forEach.call(document.querySelectorAll(".chip[data-pace]"), function (chip) {
     chip.addEventListener("click", function () {
       const v = Number(chip.dataset.pace);
@@ -684,6 +698,20 @@ function wire() {
     }
   });
 
+  const tripsModal = $("trips-modal");
+  $("btn-trips").addEventListener("click", function () {
+    tripsModal.hidden = false;
+    renderTripList();
+    $("trip-name").focus();
+  });
+  $("trips-close").addEventListener("click", function () { tripsModal.hidden = true; });
+  tripsModal.addEventListener("click", function (ev) {
+    if (ev.target === tripsModal) tripsModal.hidden = true;
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") tripsModal.hidden = true;
+  });
+
   $("network-pill").hidden = navigator.onLine;
   window.addEventListener("online", function () { $("network-pill").hidden = true; });
   window.addEventListener("offline", function () { $("network-pill").hidden = false; });
@@ -799,6 +827,7 @@ function snapshotTrip(s) {
     track: s.track,
     bailoutPoints: s.bailoutPoints,
     pace: s.pace,
+    groupFactor: s.groupFactor,
     safetyMargin: s.safetyMargin,
     useCivil: s.useCivil,
     startTime: s.startTime.toISOString(),
@@ -821,6 +850,7 @@ function syncControlsFromState(s) {
   $("use-civil").checked = s.useCivil;
   setRangeValue($("speed-factor"), s.pace.speedFactor);
   setRangeValue($("moving-ratio"), s.pace.movingRatio);
+  setRangeValue($("group-factor"), s.groupFactor == null ? 1 : s.groupFactor);
   setRangeValue($("safety-margin"), s.safetyMargin);
   setRangeValue($("delay"), s.delay || 0);
 }
@@ -840,6 +870,7 @@ function applyTrip(raw, fit) {
     bailoutPoints: trip.bailoutPoints,
     mode: trip.mode,
     pace: trip.pace,
+    groupFactor: trip.groupFactor == null ? 1 : trip.groupFactor,
     safetyMargin: trip.safetyMargin,
     useCivil: trip.useCivil,
     startTime: trip.startTime ? new Date(trip.startTime) : store.get().startTime,
@@ -863,7 +894,7 @@ function persistSession(s) {
     saveSession({
       routeId: s.routeId, routeName: s.routeName, mode: s.mode,
       track: tripPayload(s), bailoutPoints: s.bailoutPoints, pace: s.pace,
-      safetyMargin: s.safetyMargin, useCivil: s.useCivil,
+      groupFactor: s.groupFactor, safetyMargin: s.safetyMargin, useCivil: s.useCivil,
       startTime: s.startTime.toISOString(),
     });
   }, 500);
