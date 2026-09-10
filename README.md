@@ -34,28 +34,32 @@ Lastlight makes it a number you can glance at.
   so a 20% grade costs what it should.
 - **Real daylight** - sunrise, sunset and civil/nautical/astronomical twilight
   computed on-device for your exact latitude and longitude. No API, no network.
+- **Group pace** - plan for the slowest member, so nobody gets left on the ridge.
+- **Latest start** - the last time you can leave the trailhead and still be back
+  before dark, plus a headlamp warning when the plan runs into twilight.
+- **Live GPS** - watch the clock update from your real position, with fix
+  accuracy and off-route distance.
+- **Conditions** - an optional Open-Meteo forecast for the hike window.
+- **Shareable safety card** - a PNG and a text plan to send to someone staying home.
 - **Offline first** - a service worker and local storage keep it working with no
   signal, because that is exactly where it matters.
 
-## Architecture
+## How it works
 
-The safety-critical maths lives in small, dependency-free, unit-tested modules under
-`src/core/`. The UI is plain ES modules, so there is no build step and no supply
-chain to trust on a mountain.
+The safety-critical maths lives in small, dependency-free, unit-tested modules
+under `src/core/`. The UI is plain ES modules, so there is no build step and no
+supply chain to trust on a mountain.
 
-| Module | Responsibility |
-| --- | --- |
-| `src/core/geo.js` | Haversine distance, linear-referenced route profiles, elevation gain/loss |
-| `src/core/pace.js` | Tobler hiking function, moving-ratio scheduling, cumulative time |
-| `src/core/solar.js` | NOAA solar position, sunrise/sunset and twilight, polar day/night |
-| `src/core/turnaround.js` | Turnaround distance, live clock, verdicts, bailout ranking |
-| `src/core/gpx.js` | Dependency-free GPX 1.1 import and export |
+- [docs/CONCEPTS.md](docs/CONCEPTS.md) - the turnaround clock, pacing, twilight
+  and bailout reasoning, and the constants you might want to argue with.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - module map, data flow, offline
+  strategy and testing.
 
 ## Develop
 
 ```sh
-npm test      # 28 unit tests, no dependencies
-npm start     # serve the app locally on http://localhost:5173
+npm test      # 46 unit tests, no dependencies
+npm start     # dev server on http://localhost:5173 with live reload
 ```
 
 The app is deployed to GitHub Pages from the \`main\` branch root. See
@@ -63,19 +67,42 @@ The app is deployed to GitHub Pages from the \`main\` branch root. See
 
 Requires Node 20 or newer. There are no runtime dependencies.
 
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| `Space` | Run or pause the simulated hike |
+| `Left` / `Right` | Move the position 100 m along the route |
+| `D` | Toggle route drawing |
+| `T` | Open the trip library |
+| `S` | Share the trip plan |
+| `L` | Toggle live GPS |
+| `F` | Fit the route on the map |
+| `?` | List the shortcuts |
+
 ## Roadmap
 
 - [x] Core geodesy, pacing, solar and turnaround engines with tests
-- [x] Canvas map engine, route drawing, GPX import/export
+- [x] Canvas map engine, route drawing, GPX import/export, night map style
 - [x] Elevation profile with live position scrubbing
 - [x] Live turnaround HUD, verdicts and the "behind schedule" stress test
 - [x] Bailout radar on the map
 - [x] Offline PWA shell (service worker, tile caching)
-- [ ] Local route store and trip history (IndexedDB)
-- [ ] Weather window and elevation lookups
+- [x] Local trip store and session restore (IndexedDB)
+- [x] Weather window and elevation lookups
+- [x] Group mode: pace to the slowest member
+- [x] Shareable safety check-in card
+- [x] Live GPS tracking with route snapping
+- [x] Latest-start and headlamp-darkness planning
 - [ ] Personal pace calibration from recorded hikes
-- [ ] Group mode: pace to the slowest member
-- [ ] Shareable safety check-in card
+- [ ] Multi-day and overnight planning
+- [ ] Turn-by-turn cue sheet export
+
+## Screens
+
+| Turnaround alarm | Trip library | Share card |
+| --- | --- | --- |
+| ![Turnaround](docs/screens/app-turnaround.png) | ![Trips](docs/screens/app-trips.png) | ![Share](docs/screens/app-share.png) |
 
 ## License
 
