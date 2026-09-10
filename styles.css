@@ -286,6 +286,8 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .verdict-sub { font-size: 12.5px; color: var(--muted); }
 .meter { margin-top: 12px; height: 5px; border-radius: 999px; background: #1b2a45; overflow: hidden; }
 .meter span { display: block; height: 100%; width: 60%; background: var(--go); border-radius: 999px; transition: width 0.4s ease, background 0.4s ease; }
+#dark-note { margin-top: 10px; color: var(--caution); }
+#dark-note:empty { display: none; }
 
 /* ---------- stats ---------- */
 .big-stat { display: flex; flex-direction: column; margin-bottom: 12px; }

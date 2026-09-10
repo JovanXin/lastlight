@@ -3,6 +3,7 @@ import { buildProfile, resample, pointAtDistance, haversineMeters } from "./core
 import { buildSchedule, minutesAtDistance, distanceAtMinutes, sanitizePace } from "./core/pace.js";
 import { analyzeOutAndBack, analyzeLoop, analyzeBailouts, returnMinutesAt, VERDICT } from "./core/turnaround.js";
 import { sunTimes } from "./core/solar.js";
+import { totalPlanMinutes, latestStart, feasibleFinish, darknessAt } from "./core/planning.js";
 import { parseGpx, toGpx } from "./core/gpx.js";
 import { SAMPLE_ROUTES, findRoute, buildTrack } from "./data/sample-routes.js";
 import { createStore } from "./ui/store.js";
@@ -117,6 +118,13 @@ function computeDerived(s) {
     : { distanceM: oneWay, minutes: outbound.totalMinutes };
 
   const endOfDay = dusk ? new Date(dusk.getTime() - s.safetyMargin * 60000) : null;
+  const planMinutes = totalPlanMinutes(outbound, inbound, s.mode);
+  const latestStartAt = latestStart(dusk ? dusk.getTime() : null, s.safetyMargin, planMinutes);
+  const fits = s.mode === "out-and-back"
+    ? analysis.wholeTripFits !== false
+    : (analysis.slackMinutes == null || analysis.slackMinutes >= 0);
+  const finishMs = feasibleFinish(s.startTime.getTime(), planMinutes, fits, dusk ? dusk.getTime() : null, s.safetyMargin);
+  const finish = darknessAt(finishMs, sun.sunset ? sun.sunset.getTime() : null);
 
   return {
     empty: empty,
@@ -125,6 +133,9 @@ function computeDerived(s) {
     bailouts: bailouts, totals: totals,
     turnaroundDeadline: analysis.deadlineToReachTurn || null,
     backBy: endOfDay,
+    planMinutes: planMinutes,
+    latestStartAt: latestStartAt,
+    finish: finish,
   };
 }
 
@@ -220,6 +231,7 @@ function renderVerdict(s) {
     $("verdict-title").textContent = "Ready when you are";
     $("verdict-sub").textContent = "Draw a route on the map, import a GPX, or choose a sample route.";
     $("verdict-meter").style.width = "0%";
+    $("dark-note").textContent = "";
     return;
   }
   card.dataset.verdict = a.verdict;
@@ -239,6 +251,9 @@ function renderVerdict(s) {
       " against the daylight left.";
   }
   $("verdict-sub").textContent = sub;
+  $("dark-note").textContent = derived.finish && derived.finish.needHeadlamp
+    ? "\u26a0 Plan finishes " + fmtDuration(derived.finish.darkMinutes) + " after sunset \u2014 pack a headlamp."
+    : "";
   const meter = $("verdict-meter");
   let pct;
   if (s.mode === "out-and-back") {
@@ -267,6 +282,7 @@ function renderTurnaroundCard(s) {
     setKV("ta-time", "Reach it by", "\u2014");
     setKV("ta-back", "Back at trailhead", "\u2014");
     setKV("ta-daylight", "Daylight left", "\u2014");
+    setKV("ta-latest", "Latest start", "\u2014");
     return;
   }
   if (s.mode === "out-and-back") {
@@ -281,6 +297,7 @@ function renderTurnaroundCard(s) {
     setKV("ta-back", "Margin", fmtDuration(s.safetyMargin));
   }
   setKV("ta-daylight", "Daylight left", derived.dusk ? fmtDuration((derived.dusk - s.simTime) / 60000) : "polar day");
+  setKV("ta-latest", "Latest start", derived.latestStartAt ? fmtClock(derived.latestStartAt) : "any time");
 }
 
 function renderStats(s) {
