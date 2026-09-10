@@ -4,6 +4,7 @@ import { buildSchedule, minutesAtDistance, distanceAtMinutes, sanitizePace } fro
 import { analyzeOutAndBack, analyzeLoop, analyzeBailouts, returnMinutesAt, VERDICT } from "./core/turnaround.js";
 import { sunTimes } from "./core/solar.js";
 import { totalPlanMinutes, latestStart, feasibleFinish, darknessAt } from "./core/planning.js";
+import { calibrateSpeedFactor, plannedMinutes, paceDelta } from "./core/calibrate.js";
 import { parseGpx, toGpx } from "./core/gpx.js";
 import { SAMPLE_ROUTES, findRoute, buildTrack } from "./data/sample-routes.js";
 import { createStore } from "./ui/store.js";
@@ -664,6 +665,25 @@ function wire() {
     return v >= 0.999 ? "solo" : Math.round(v * 100) + "% of best";
   }, function (v) {
     store.set({ groupFactor: v });
+  });
+  $("btn-calibrate").addEventListener("click", function () {
+    if (derived.empty) { flashStatus("Load a route before calibrating."); return; }
+    const hours = Number($("calib-hours").value) || 0;
+    const mins = Number($("calib-minutes").value) || 0;
+    const actual = hours * 60 + mins;
+    if (actual <= 0) { flashStatus("Enter how long the hike took."); return; }
+    const s = store.get();
+    const base = effectivePace(s);
+    const planned = plannedMinutes(derived.profile, base, s.mode);
+    const res = calibrateSpeedFactor(derived.profile, base, actual, { mode: s.mode });
+    const group = s.groupFactor || 1;
+    const newBase = clamp(res.speedFactor / group, 0.2, 3);
+    setRangeValue($("speed-factor"), Number(newBase.toFixed(2)));
+    const delta = paceDelta(actual, planned);
+    if (delta != null) $("calib-out").textContent = (delta >= 0 ? "+" : "") + Math.round(delta * 100) + "%";
+    flashStatus(res.matched
+      ? "Calibrated: speed factor " + newBase.toFixed(2) + "\u00d7 (" + (delta >= 0 ? "slower" : "faster") + " than plan by " + Math.abs(Math.round((delta || 0) * 100)) + "%)."
+      : "That duration is outside the calibratable range \u2014 check the entry.");
   });
   Array.prototype.forEach.call(document.querySelectorAll(".chip[data-pace]"), function (chip) {
     chip.addEventListener("click", function () {
