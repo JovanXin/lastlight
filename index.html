@@ -106,7 +106,15 @@
           <span class="field-label">Group pace <b id="group-out">solo</b></span>
           <input type="range" id="group-factor" min="0.5" max="1" step="0.01" value="1" />
         </label>
-        <p class="hint">Moving ratio is the share of elapsed time you spend actually walking — breaks, photos and route-finding live in the rest. Group pace plans for the slowest member.</p>
+        <label class="field">
+          <span class="field-label">Fit to a real hike <b id="calib-out">—</b></span>
+          <div class="calib-row">
+            <input type="number" id="calib-hours" min="0" max="48" step="1" placeholder="hours" />
+            <input type="number" id="calib-minutes" min="0" max="59" step="1" placeholder="min" />
+            <button class="btn small" id="btn-calibrate" type="button">Calibrate</button>
+          </div>
+        </label>
+        <p class="hint">Moving ratio is the share of elapsed time you spend actually walking — breaks, photos and route-finding live in the rest. Group pace plans for the slowest member. Calibrate updates your speed factor from how long a hike actually took.</p>
       </section>
 
       <section class="card" id="conditions-card">
