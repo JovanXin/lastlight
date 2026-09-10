@@ -17,7 +17,7 @@ test("a route that fits in a day is one stage", function () {
 
 test("a long route splits into stages that cover the whole route", function () {
   // 5 km takes about 60 minutes, so 30 usable minutes per day needs two days.
-  const days = splitIntoDays(profile, schedule, { dayLengthMinutes: 60, marginMinutes: 30 });
+  const days = splitIntoDays(profile, schedule, { dayLengthMinutes: 60, marginMinutes: 30, mergeFinalDayBelow: 0 });
   assert.equal(days.length, 2);
   assert.ok(Math.abs(days[0].distanceM + days[1].distanceM - profile.distanceM) < 5);
   assert.ok(days[0].endDistM <= days[1].startDistM + 0.01);
@@ -36,12 +36,43 @@ test("stages carry their own ascent and clock times", function () {
     if (d > 0) profileAscent += d;
   }
   const startMs = new Date(2026, 8, 11, 8, 0).getTime();
-  const days = splitIntoDays(climbing, sched, { dayLengthMinutes: 120, marginMinutes: 30, startMs: startMs });
+  const days = splitIntoDays(climbing, sched, { dayLengthMinutes: 120, marginMinutes: 30, startMs: startMs, mergeFinalDayBelow: 0 });
   assert.ok(days.length >= 2);
   const totalAscent = days.reduce(function (sum, d) { return sum + d.ascentM; }, 0);
   assert.ok(Math.abs(totalAscent - profileAscent) < 1, "ascent " + totalAscent + " vs " + profileAscent);
   assert.equal(days[0].startAt.getHours(), 8);
   assert.equal(days[1].startAt.getHours(), 8);
+});
+
+test("stages prefer a named stopping point inside the day", function () {
+  const days = splitIntoDays(profile, schedule, {
+    dayLengthMinutes: 60, marginMinutes: 30,
+    stopDistances: [2000, 4000],
+    mergeFinalDayBelow: 0,
+  });
+  assert.equal(days.length, 3);
+  assert.ok(Math.abs(days[0].endDistM - 2000) < 1, "day 1 end " + days[0].endDistM);
+  assert.ok(Math.abs(days[1].endDistM - 4000) < 1, "day 2 end " + days[1].endDistM);
+  assert.ok(Math.abs(days[2].endDistM - profile.distanceM) < 1);
+});
+
+test("a trivially short final day is merged into the previous one", function () {
+  const days = splitIntoDays(profile, schedule, { dayLengthMinutes: 60, marginMinutes: 30 });
+  // 5 km takes ~60 min, so short daily budgets would leave a tiny last day;
+  // the merge keeps the final stage substantive.
+  assert.ok(days.length >= 1);
+  if (days.length > 1) {
+    assert.ok(days[days.length - 1].minutes >= 90, "last day " + days[days.length - 1].minutes);
+  }
+  const covered = days.reduce(function (sum, d) { return sum + d.distanceM; }, 0);
+  assert.ok(Math.abs(covered - profile.distanceM) < 5);
+  // A merged day must end when its full walking time says, not when the day it
+  // absorbed used to end.
+  const last = days[days.length - 1];
+  if (last.startAt && last.endAt) {
+    const implied = (last.endAt - last.startAt) / 60000;
+    assert.ok(Math.abs(implied - last.minutes) < 0.01, "implied " + implied + " vs " + last.minutes);
+  }
 });
 
 test("an empty profile produces no stages", function () {

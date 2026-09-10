@@ -7,17 +7,34 @@ function dayStartDate(startMs, dayIndex, dayStartMinutes) {
   return base;
 }
 
+function nearestIndex(pts, dist) {
+  let lo = 0;
+  let hi = pts.length - 1;
+  while (lo + 1 < hi) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].dist <= dist) lo = mid; else hi = mid;
+  }
+  return Math.abs(pts[lo].dist - dist) <= Math.abs(pts[hi].dist - dist) ? lo : hi;
+}
+
+// Split a schedule into days. Days end at the last named stopping point (a hut
+// or camp) that still fits inside the day, so stages land where a walker would
+// actually stop rather than wherever the clock happens to run out.
 export function splitIntoDays(profile, schedule, options) {
   const opts = options || {};
   const dayLength = opts.dayLengthMinutes == null ? 600 : opts.dayLengthMinutes;
   const margin = opts.marginMinutes == null ? 30 : opts.marginMinutes;
   const dayStartMinutes = opts.dayStartMinutes == null ? 480 : opts.dayStartMinutes;
   const maxDays = opts.maxDays == null ? 60 : opts.maxDays;
+  const mergeBelow = opts.mergeFinalDayBelow == null ? 90 : opts.mergeFinalDayBelow;
   const usable = Math.max(30, dayLength - margin);
   const pts = schedule.points;
   const cum = schedule.cumulativeMinutes;
   const days = [];
   if (pts.length < 2) return days;
+
+  const stopIdx = new Set((opts.stopDistances || []).map(function (d) { return nearestIndex(pts, d); })
+    .filter(function (i) { return i > 0 && i < pts.length - 1; }));
 
   let startIdx = 0;
   while (startIdx < pts.length - 1 && days.length < maxDays) {
@@ -25,6 +42,10 @@ export function splitIntoDays(profile, schedule, options) {
     let endIdx = startIdx;
     while (endIdx + 1 < pts.length && cum[endIdx + 1] - base <= usable) endIdx++;
     if (endIdx === startIdx) endIdx = Math.min(startIdx + 1, pts.length - 1);
+    // Prefer the furthest hut or camp that still fits within the day.
+    let chosen = -1;
+    for (let i = startIdx + 1; i <= endIdx; i++) if (stopIdx.has(i)) chosen = i;
+    if (chosen > startIdx) endIdx = chosen;
 
     let ascent = 0;
     for (let i = startIdx + 1; i <= endIdx; i++) {
@@ -48,6 +69,19 @@ export function splitIntoDays(profile, schedule, options) {
 
     if (endIdx >= pts.length - 1) break;
     startIdx = endIdx;
+  }
+
+  // Fold a trivially short final day into the one before it: a 30 minute last
+  // leg means you would have simply kept walking.
+  if (days.length > 1 && days[days.length - 1].minutes < mergeBelow) {
+    const last = days.pop();
+    const prev = days[days.length - 1];
+    prev.distanceM += last.distanceM;
+    prev.ascentM += last.ascentM;
+    prev.minutes += last.minutes;
+    prev.endDistM = last.endDistM;
+    // Recompute the clock: keeping the discarded day's end time would be wrong.
+    prev.endAt = prev.startAt ? new Date(prev.startAt.getTime() + prev.minutes * 60000) : null;
   }
   return days;
 }
