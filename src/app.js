@@ -18,6 +18,7 @@ import { listTrips, saveTrip, deleteTrip, saveSession, loadSession, normalizeTri
 import { fetchWeather, summarizeWindow, fetchElevations } from "./services/weather.js";
 import { buildPlanText, drawShareCard } from "./ui/sharecard.js";
 import { projectOnRoute, watchLocation, isSupported } from "./services/location.js";
+import { tilesForBounds, routeBounds, cacheTiles } from "./services/offline.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -899,6 +900,24 @@ function wire() {
     } catch (err) {
       flashStatus("Elevation lookup failed: " + err.message);
     }
+  });
+
+  $("btn-save-map").addEventListener("click", async function () {
+    if (derived.empty) { flashStatus("Load a route before saving the map."); return; }
+    if (typeof caches === "undefined") { flashStatus("This browser cannot cache the map."); return; }
+    const bounds = routeBounds(derived.profile, 1200);
+    let tiles = [];
+    for (let z = 12; z <= 15; z++) tiles = tiles.concat(tilesForBounds(bounds, z));
+    const capped = tiles.length > 600;
+    if (capped) tiles = tiles.slice(0, 600);
+    flashStatus("Saving " + tiles.length + " map tiles for offline use\u2026");
+    const saved = await cacheTiles(tiles, function (done, total, ok) {
+      if (done % 15 === 0 || done === total) {
+        $("status").textContent = "Saving map tiles \u2026 " + done + "/" + total + " (" + ok + " stored)";
+        statusFlashUntil = Date.now() + 3000;
+      }
+    });
+    flashStatus("Saved " + saved + " map tiles. The route area will still show offline.");
   });
 
   // GPX

@@ -2,7 +2,9 @@
 // for map tiles, so the app opens with no signal.
 const VERSION = "lastlight-v3";
 const SHELL_CACHE = VERSION + "-shell";
-const TILE_CACHE = VERSION + "-tiles";
+// Stable name shared with src/services/offline.js so saved tiles survive app
+// version bumps.
+const TILE_CACHE = "lastlight-tiles";
 // A 1x1 transparent PNG, served in place of a tile that cannot be fetched so
 // the map degrades quietly instead of logging errors.
 const BLANK_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
