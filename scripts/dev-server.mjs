@@ -37,20 +37,38 @@ function broadcast() {
   }
 }
 
-function startWatcher() {
+function onChange(filename) {
+  if (!filename) return;
+  if (filename.startsWith(".git") || filename.includes("node_modules")) return;
+  if (filename.startsWith("docs")) return;
+  if (!WATCH_EXT.has(path.extname(filename).toLowerCase())) return;
+  clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(broadcast, 90);
+}
+
+// Watch source directories rather than the whole tree: recursively watching the
+// project root also watches .git, and deleting a branch then crashes the watcher
+// with ENOENT. Errors re-arm the watcher instead of taking the server down.
+function watchDir(dir, recursive) {
+  let watcher;
   try {
-    fs.watch(root, { recursive: true }, function (event, filename) {
-      if (!filename) return;
-      if (filename.startsWith(".git") || filename.includes("node_modules")) return;
-      if (filename.startsWith("docs")) return;
-      if (!WATCH_EXT.has(path.extname(filename).toLowerCase())) return;
-      clearTimeout(reloadTimer);
-      reloadTimer = setTimeout(broadcast, 90);
-    });
-    console.log("Live reload watching " + root);
+    watcher = fs.watch(dir, { recursive: recursive }, function (event, filename) { onChange(filename); });
   } catch (err) {
-    console.warn("Live reload unavailable: " + err.message);
+    console.warn("Live reload: cannot watch " + dir + " (" + err.message + ")");
+    return;
   }
+  watcher.on("error", function (err) {
+    console.warn("Live reload: watcher error on " + dir + " (" + err.message + "), re-arming");
+    try { watcher.close(); } catch (closeErr) { /* already closed */ }
+    setTimeout(function () { watchDir(dir, recursive); }, 500);
+  });
+}
+
+function startWatcher() {
+  watchDir(path.join(root, "src"), true);
+  watchDir(path.join(root, "icons"), true);
+  watchDir(root, false); // root files only: index.html, styles.css, sw.js, manifest
+  console.log("Live reload watching src, icons and the project root");
 }
 
 const server = http.createServer(function (req, res) {
