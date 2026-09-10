@@ -446,6 +446,8 @@ function renderProfileChart(s) {
       return { routeDist: b.routeDist, reachable: b.reachable, name: b.bailout.name };
     }),
     positionDist: s.distanceNow,
+    schedule: derived.outbound,
+    startMs: s.startTime.getTime(),
   });
   profileChart.setPosition(s.distanceNow);
   $("profile-meta").textContent = fmtKm(derived.profile.distanceM, 2) + " one way · " +
