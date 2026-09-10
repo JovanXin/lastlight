@@ -8,6 +8,7 @@ import { calibrateSpeedFactor, plannedMinutes, paceDelta } from "./core/calibrat
 import { parseGpx, toGpx } from "./core/gpx.js";
 import { buildCueSheet, formatCueSheetText } from "./core/cuesheet.js";
 import { splitIntoDays } from "./core/multiday.js";
+import { assessReadiness } from "./core/readiness.js";
 import { SAMPLE_ROUTES, findRoute, buildTrack } from "./data/sample-routes.js";
 import { createStore } from "./ui/store.js";
 import { TrailMap } from "./ui/map.js";
@@ -197,6 +198,7 @@ function render() {
   const s = store.get();
   derived = computeDerived(s);
   renderHUD(s);
+  renderReadiness(s);
   renderVerdict(s);
   renderTurnaroundCard(s);
   renderStats(s);
@@ -253,6 +255,38 @@ function renderHUD(s) {
 function currentSpeed(s) {
   const grade = derived.outbound.gradeAt ? derived.outbound.gradeAt(s.distanceNow) : 0;
   return (6 * Math.exp(-3.5 * Math.abs(grade + 0.05)) * effectivePace(s).speedFactor).toFixed(1) + " km/h";
+}
+
+const READINESS_LABEL = { go: "Ready to go", caution: "Use caution", "no-go": "Not today" };
+
+function readinessInput(s) {
+  const end = derived.dusk || new Date(s.startTime.getTime() + 12 * 3600000);
+  const summary = s.weather && s.weatherStatus === "ready"
+    ? summarizeWindow(s.weather.hours, s.startTime.getTime(), end.getTime())
+    : null;
+  return {
+    wholeTripFits: derived.analysis.wholeTripFits,
+    verdict: derived.analysis.verdict,
+    darkMinutes: derived.finish ? derived.finish.darkMinutes : 0,
+    maxWindKph: summary ? summary.maxWindKph : null,
+    maxPrecipProb: summary ? summary.maxPrecipProb : null,
+    worstCode: summary ? summary.worstCode : null,
+    minTempC: summary ? summary.minTempC : null,
+  };
+}
+
+function renderReadiness(s) {
+  const card = $("readiness-card");
+  if (derived.empty) {
+    card.dataset.level = "idle";
+    $("readiness-title").textContent = "No route";
+    $("readiness-why").textContent = "Load a route to assess it.";
+    return;
+  }
+  const result = assessReadiness(readinessInput(s));
+  card.dataset.level = result.level;
+  $("readiness-title").textContent = READINESS_LABEL[result.level] || "Ready";
+  $("readiness-why").textContent = result.reasons.map(function (r) { return r.text; }).join(" ");
 }
 
 function renderVerdict(s) {
