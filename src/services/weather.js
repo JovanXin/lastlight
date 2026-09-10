@@ -82,6 +82,8 @@ export function summarizeWindow(hours, startMs, endMs) {
   if (!use.length) return null;
   let minTemp = Infinity;
   let maxTemp = -Infinity;
+  let minApp = Infinity;
+  let maxApp = -Infinity;
   let maxPrecip = 0;
   let maxWind = 0;
   let worst = 0;
@@ -89,6 +91,7 @@ export function summarizeWindow(hours, startMs, endMs) {
     const h = use[i];
     if (Number.isFinite(h.tempC)) { minTemp = Math.min(minTemp, h.tempC); maxTemp = Math.max(maxTemp, h.tempC); }
     if (Number.isFinite(h.precipProb)) maxPrecip = Math.max(maxPrecip, h.precipProb);
+    if (Number.isFinite(h.apparentC)) { minApp = Math.min(minApp, h.apparentC); maxApp = Math.max(maxApp, h.apparentC); }
     if (Number.isFinite(h.windKph)) maxWind = Math.max(maxWind, h.windKph);
     if (h.code > worst) worst = h.code;
   }
@@ -97,6 +100,8 @@ export function summarizeWindow(hours, startMs, endMs) {
     inWindow: inWindow.length,
     minTempC: minTemp === Infinity ? null : minTemp,
     maxTempC: maxTemp === -Infinity ? null : maxTemp,
+    minApparentC: minApp === Infinity ? null : minApp,
+    maxApparentC: maxApp === -Infinity ? null : maxApp,
     maxPrecipProb: maxPrecip,
     maxWindKph: maxWind,
     worstCode: worst,

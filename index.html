@@ -52,6 +52,7 @@
         </label>
         <div class="btn-row">
           <button class="btn small" id="btn-draw" type="button">Draw on map</button>
+          <button class="btn small" id="btn-elevation" type="button">Real elevation</button>
           <button class="btn small" id="btn-fit" type="button">Fit</button>
         </div>
         <p class="hint" id="draw-hint">Click the map to add points. Double-click to finish.</p>
@@ -186,6 +187,21 @@
           <div class="stat"><span id="stat-descent">—</span><label>descent</label></div>
           <div class="stat"><span id="stat-time">—</span><label>est. time</label></div>
         </div>
+      </section>
+
+      <section class="card" id="conditions-card">
+        <h2 class="card-title">Conditions <span class="pill" id="conditions-status">\u2014</span></h2>
+        <div class="cond-main">
+          <span class="cond-icon" id="cond-icon">\u00b7</span>
+          <span class="cond-temp" id="cond-temp">\u2014</span>
+          <span class="cond-label" id="cond-label">no forecast</span>
+        </div>
+        <dl class="kv">
+          <div><dt>Rain chance</dt><dd id="cond-rain">\u2014</dd></div>
+          <div><dt>Peak wind</dt><dd id="cond-wind">\u2014</dd></div>
+          <div><dt>Feels like</dt><dd id="cond-feels">\u2014</dd></div>
+        </dl>
+        <p class="hint" id="cond-note"></p>
       </section>
 
       <section class="card grow">

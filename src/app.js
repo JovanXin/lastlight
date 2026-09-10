@@ -13,6 +13,7 @@ import {
   dateToInputValue, timeToInputValue, inputValueToDate, verdictLabel,
 } from "./ui/format.js";
 import { listTrips, saveTrip, deleteTrip, saveSession, loadSession, normalizeTrip, tripSummary } from "./services/storage.js";
+import { fetchWeather, summarizeWindow, fetchElevations } from "./services/weather.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -44,6 +45,8 @@ const store = createStore({
   simSpeed: 60,
   simElapsed: 0,
   drawMode: false,
+  weather: null,
+  weatherStatus: "idle",
 });
 
 let derived = null;
@@ -141,6 +144,7 @@ function render() {
   renderStats(s);
   renderBailouts(s);
   renderDaylight(s);
+  renderConditions(s);
   renderMap(s);
   renderProfileChart(s);
   renderStatus(s);
@@ -327,7 +331,16 @@ function renderProfileChart(s) {
     fmtMeters(Math.max.apply(null, derived.profile.points.map(function (p) { return p.ele; })));
 }
 
+let statusFlashUntil = 0;
+
+// Show a temporary message in the status bar without the next render erasing it.
+function flashStatus(text) {
+  $("status").textContent = text;
+  statusFlashUntil = Date.now() + 7000;
+}
+
 function renderStatus(s) {
+  if (Date.now() < statusFlashUntil) return;
   const a = derived.analysis;
   const bits = [];
   bits.push(s.routeName);
@@ -440,6 +453,7 @@ function loadRoute(route, fit) {
     map.fitTo(route.track);
     map.render();
   }
+  scheduleWeather();
 }
 
 function wire() {
@@ -462,6 +476,7 @@ function wire() {
     const s = store.get();
     const clock = clockForPosition(s, s.distanceNow);
     store.set({ startTime: start, simTime: clock, simElapsed: 0 });
+    scheduleWeather();
   };
   $("start-date").addEventListener("change", onTimeChange);
   $("start-time").addEventListener("change", onTimeChange);
@@ -582,6 +597,22 @@ function wire() {
     }, true);
   };
 
+  $("btn-elevation").addEventListener("click", async function () {
+    const s = store.get();
+    if (!s.track || s.track.length < 2) { flashStatus("Draw or import a route first."); return; }
+    flashStatus("Looking up real elevations\u2026");
+    try {
+      const eles = await fetchElevations(s.track);
+      const track = s.track.map(function (p, i) {
+        return { lat: p.lat, lon: p.lon, ele: Number.isFinite(eles[i]) ? eles[i] : (Number(p.ele) || 0) };
+      });
+      store.set({ track: track });
+      flashStatus("Applied real elevations to " + track.length + " points.");
+    } catch (err) {
+      flashStatus("Elevation lookup failed: " + err.message);
+    }
+  });
+
   // GPX
   $("btn-import").addEventListener("click", function () { $("file-gpx").click(); });
   $("file-gpx").addEventListener("change", function (e) {
@@ -601,9 +632,9 @@ function wire() {
           track: track,
           bailouts: [{ name: "Start", lat: track[0].lat, lon: track[0].lon, ele: track[0].ele }],
         }, true);
-        $("status").textContent = "Imported " + track.length + " points from " + file.name;
+        flashStatus("Imported " + track.length + " points from " + file.name);
       } catch (err) {
-        $("status").textContent = "GPX import failed: " + err.message;
+        flashStatus("GPX import failed: " + err.message);
       }
       e.target.value = "";
     };
@@ -623,20 +654,20 @@ function wire() {
   $("btn-clear").addEventListener("click", function () {
     stopHike();
     store.set({ routeId: "", routeName: "Untitled route", track: [], bailoutPoints: [], distanceNow: 0, simTime: store.get().startTime });
-    $("status").textContent = "Route cleared. Draw one on the map or import a GPX.";
+    flashStatus("Route cleared. Draw one on the map or import a GPX.");
   });
 
   $("btn-save-trip").addEventListener("click", async function () {
     const s = store.get();
-    if (!s.track || s.track.length < 2) { $("status").textContent = "Nothing to save yet."; return; }
+    if (!s.track || s.track.length < 2) { flashStatus("Nothing to save yet."); return; }
     const name = ($("trip-name").value || s.routeName || "Untitled trip").trim();
     try {
       const saved = await saveTrip(Object.assign(snapshotTrip(s), { id: s.savedId || undefined, routeName: name }));
       store.set({ savedId: saved.id, routeName: saved.routeName });
       await renderTripList();
-      $("status").textContent = "Saved \"" + saved.routeName + "\".";
+      flashStatus("Saved \"" + saved.routeName + "\".");
     } catch (err) {
-      $("status").textContent = "Save failed: " + err.message;
+      flashStatus("Save failed: " + err.message);
     }
   });
   $("trip-list").addEventListener("click", async function (ev) {
@@ -645,11 +676,11 @@ function wire() {
     const id = btn.dataset.id;
     if (btn.dataset.action === "load") {
       const trip = tripCache.find(function (t) { return t.id === id; });
-      if (trip && applyTrip(trip, true)) $("status").textContent = "Loaded \"" + trip.routeName + "\".";
+      if (trip && applyTrip(trip, true)) flashStatus("Loaded \"" + trip.routeName + "\".");
     } else if (btn.dataset.action === "delete") {
       await deleteTrip(id);
       await renderTripList();
-      $("status").textContent = "Deleted saved trip.";
+      flashStatus("Deleted saved trip.");
     }
   });
 
@@ -683,6 +714,78 @@ function dedupe(points, minMeters) {
 // Smooth synthetic relief for a GPX that carries no elevation values.
 function fallbackEle(i, n) {
   return 120 + 60 * Math.sin((i / Math.max(1, n)) * Math.PI * 2);
+}
+
+// ---------------------------------------------------------------------------
+// Optional online data: forecast and real elevations
+// ---------------------------------------------------------------------------
+let weatherTimer = null;
+let weatherToken = 0;
+
+function scheduleWeather() {
+  clearTimeout(weatherTimer);
+  weatherTimer = setTimeout(loadWeather, 700);
+}
+
+async function loadWeather() {
+  const s = store.get();
+  if (!s.track || s.track.length < 2) {
+    store.set({ weather: null, weatherStatus: "idle" });
+    return;
+  }
+  const start = s.track[0];
+  const token = ++weatherToken;
+  store.set({ weatherStatus: "loading" });
+  try {
+    const data = await fetchWeather(start.lat, start.lon, s.startTime);
+    if (token !== weatherToken) return;
+    store.set({ weather: data, weatherStatus: "ready" });
+  } catch (err) {
+    if (token !== weatherToken) return;
+    store.set({ weather: null, weatherStatus: "error" });
+  }
+}
+
+function conditionNote(summary) {
+  if (!summary) return "";
+  if (summary.worstCode >= 95) return "Thunderstorms possible \u2014 avoid exposed ridges.";
+  if (summary.maxWindKph >= 60) return "Strong wind \u2014 expect difficult travel on exposed tops.";
+  if (summary.maxPrecipProb >= 60) return "Rain likely \u2014 pack shells and expect slick rock.";
+  if (summary.minTempC != null && summary.minTempC <= 2) return "Near freezing \u2014 watch for ice.";
+  if (summary.maxWindKph >= 40) return "Breezy \u2014 a windproof layer will earn its place.";
+  return "";
+}
+
+function renderConditions(s) {
+  const status = $("conditions-status");
+  if (s.weatherStatus === "loading") status.textContent = "loading";
+  else if (s.weatherStatus === "ready" && s.weather) status.textContent = "live";
+  else if (s.weatherStatus === "error") status.textContent = "offline";
+  else status.textContent = "\u2014";
+
+  const end = derived.dusk || new Date(s.startTime.getTime() + 12 * 3600000);
+  const summary = s.weather && s.weatherStatus === "ready"
+    ? summarizeWindow(s.weather.hours, s.startTime.getTime(), end.getTime())
+    : null;
+  if (!summary) {
+    $("cond-icon").textContent = s.weatherStatus === "error" ? "\ud83d\udcf4" : "\u00b7";
+    $("cond-temp").textContent = "\u2014";
+    $("cond-label").textContent = s.weatherStatus === "error" ? "forecast unavailable offline" : "waiting for a route";
+    $("cond-rain").textContent = "\u2014";
+    $("cond-wind").textContent = "\u2014";
+    $("cond-feels").textContent = "\u2014";
+    $("cond-note").textContent = "";
+    return;
+  }
+  $("cond-icon").textContent = summary.worst.icon;
+  $("cond-temp").textContent = (summary.minTempC == null ? "?" : Math.round(summary.minTempC)) + "\u00b0 / " +
+    (summary.maxTempC == null ? "?" : Math.round(summary.maxTempC)) + "\u00b0";
+  $("cond-label").textContent = summary.worst.label;
+  $("cond-rain").textContent = Math.round(summary.maxPrecipProb) + "%";
+  $("cond-wind").textContent = Math.round(summary.maxWindKph) + " km/h";
+  $("cond-feels").textContent = summary.minApparentC == null ? "\u2014"
+    : Math.round(summary.minApparentC) + "\u00b0 to " + Math.round(summary.maxApparentC) + "\u00b0";
+  $("cond-note").textContent = conditionNote(summary);
 }
 
 // ---------------------------------------------------------------------------
@@ -725,7 +828,7 @@ function syncControlsFromState(s) {
 function applyTrip(raw, fit) {
   let trip;
   try { trip = normalizeTrip(raw); } catch (err) {
-    $("status").textContent = "Cannot load trip: " + err.message;
+    flashStatus("Cannot load trip: " + err.message);
     return false;
   }
   stopHike();
@@ -749,6 +852,7 @@ function applyTrip(raw, fit) {
     b.classList.toggle("is-active", b.dataset.mode === trip.mode);
   });
   if (fit !== false && map) { map.fitTo(trip.track); map.render(); }
+  scheduleWeather();
   return true;
 }
 
