@@ -75,6 +75,7 @@ function effectivePace(s) {
 function computeDerived(s) {
   const raw = buildProfile(s.track, { smoothWindow: 3 });
   const profile = resample(raw, 20);
+  const empty = profile.points.length < 2 || profile.distanceM <= 0;
   const start = profile.points[0] || { lat: 0, lon: 0, ele: 0 };
   const sun = sunTimes(s.startTime, start.lat, start.lon);
   const dusk = s.useCivil ? (sun.civilDusk || sun.sunset) : (sun.sunset || sun.civilDusk);
@@ -118,6 +119,7 @@ function computeDerived(s) {
   const endOfDay = dusk ? new Date(dusk.getTime() - s.safetyMargin * 60000) : null;
 
   return {
+    empty: empty,
     raw: raw, profile: profile, sun: sun, dusk: dusk, outbound: outbound, inbound: inbound,
     analysis: analysis, current: current, turnaroundPoint: turnaroundPoint, turnDist: turnDist,
     bailouts: bailouts, totals: totals,
@@ -166,6 +168,14 @@ function render() {
 function renderHUD(s) {
   const a = derived.analysis;
   const hud = $("hud");
+  if (derived.empty) {
+    hud.dataset.verdict = "idle";
+    $("hud-label").textContent = "No route";
+    $("hud-time").textContent = "\u2014";
+    $("hud-sub").textContent = "draw a route or pick a sample";
+    $("hud-meta").textContent = "";
+    return;
+  }
   hud.dataset.verdict = a.verdict;
   if (s.mode === "out-and-back") {
     $("hud-label").textContent = a.minutesUntilTurnaround == null ? "Daylight" : (a.minutesUntilTurnaround < 0 ? "Past turnaround" : "Turn in");
@@ -204,6 +214,14 @@ function currentSpeed(s) {
 function renderVerdict(s) {
   const a = derived.analysis;
   const card = $("verdict-card");
+  if (derived.empty) {
+    card.dataset.verdict = "idle";
+    $("verdict-kicker").textContent = "No route";
+    $("verdict-title").textContent = "Ready when you are";
+    $("verdict-sub").textContent = "Draw a route on the map, import a GPX, or choose a sample route.";
+    $("verdict-meter").style.width = "0%";
+    return;
+  }
   card.dataset.verdict = a.verdict;
   $("verdict-kicker").textContent = s.mode === "out-and-back" ? "Out and back" : "Thru / loop";
   $("verdict-title").textContent = verdictLabel(a.verdict);
@@ -243,6 +261,14 @@ function setKV(id, label, value) {
 function renderTurnaroundCard(s) {
   const a = derived.analysis;
   const bigLabel = $("ta-distance").nextElementSibling;
+  if (derived.empty) {
+    bigLabel.textContent = "furthest safe point";
+    $("ta-distance").textContent = "\u2014";
+    setKV("ta-time", "Reach it by", "\u2014");
+    setKV("ta-back", "Back at trailhead", "\u2014");
+    setKV("ta-daylight", "Daylight left", "\u2014");
+    return;
+  }
   if (s.mode === "out-and-back") {
     bigLabel.textContent = "furthest safe point";
     $("ta-distance").textContent = fmtKm(a.turnaroundDistanceM, 2);
@@ -258,6 +284,12 @@ function renderTurnaroundCard(s) {
 }
 
 function renderStats(s) {
+  if (derived.empty) {
+    ["stat-distance", "stat-ascent", "stat-descent", "stat-time"].forEach(function (id) {
+      $(id).textContent = "\u2014";
+    });
+    return;
+  }
   $("stat-distance").textContent = fmtKm(derived.totals.distanceM, 2);
   const g = derived.profile;
   const oneGain = sumGain(g);
@@ -323,6 +355,7 @@ function renderBailouts(s) {
 function renderDaylight(s) {
   const sun = derived.sun;
   const badge = $("daylight-text");
+  if (derived.empty) { badge.textContent = "add a route for daylight"; return; }
   if (!sun.sunrise || !sun.sunset) {
     badge.textContent = sun.polar === "day" ? "midnight sun" : "polar night";
     return;
@@ -333,6 +366,15 @@ function renderDaylight(s) {
 
 function renderMap(s) {
   if (!map) return;
+  $("empty-state").hidden = !derived.empty || s.drawMode;
+  if (derived.empty) {
+    map.setRoute([], null);
+    map.position = null;
+    map.setTurnaround(null);
+    map.setBailouts([]);
+    map.render();
+    return;
+  }
   map.setRoute(derived.profile.points, derived.profile);
   map.setPosition(s.distanceNow, derived.profile);
   map.setTurnaround(derived.turnaroundPoint);
@@ -344,6 +386,11 @@ function renderMap(s) {
 
 function renderProfileChart(s) {
   if (!profileChart) return;
+  if (derived.empty) {
+    profileChart.setData({ points: [], distanceM: 0 }, { turnaroundDist: null, bailouts: [], positionDist: 0 });
+    $("profile-meta").textContent = "No route loaded";
+    return;
+  }
   profileChart.setData(derived.profile, {
     turnaroundDist: s.mode === "out-and-back" ? derived.turnDist : null,
     bailouts: derived.bailouts.map(function (b) {
@@ -391,6 +438,10 @@ function shareModel(s) {
 
 function renderStatus(s) {
   if (Date.now() < statusFlashUntil) return;
+  if (derived.empty) {
+    $("status").textContent = "No route \u2014 draw on the map, import a GPX, or choose a sample.";
+    return;
+  }
   const a = derived.analysis;
   const bits = [];
   bits.push(s.routeName);
