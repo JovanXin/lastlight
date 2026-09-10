@@ -464,6 +464,38 @@ function flashStatus(text) {
   statusFlashUntil = Date.now() + 7000;
 }
 
+function populatePrintPlan() {
+  if (!derived) return;
+  const s = store.get();
+  $("print-generated").textContent = "Generated " + fmtDayMonth(new Date()) + " at " + fmtClock(new Date());
+  $("print-route").textContent = s.routeName || "Untitled route";
+  $("print-mode").textContent = s.mode === "out-and-back" ? "Out and back" : "Thru / loop";
+  if (derived.empty) {
+    ["print-distance", "print-ascent", "print-start", "print-daylight", "print-turnaround", "print-back"].forEach(function (id) { $(id).textContent = "\u2014"; });
+    $("print-bailouts").innerHTML = "";
+    $("print-profile").removeAttribute("src");
+    return;
+  }
+  const gain = sumGain(derived.profile);
+  const loss = sumLoss(derived.profile);
+  $("print-distance").textContent = fmtKm(derived.totals.distanceM, 2);
+  $("print-ascent").textContent = fmtMeters(s.mode === "out-and-back" ? gain + loss : gain);
+  $("print-start").textContent = fmtDayMonth(s.startTime) + " " + fmtClock(s.startTime);
+  $("print-daylight").textContent = derived.sun.sunrise ? fmtClock(derived.sun.sunrise) + " to " + fmtClock(derived.sun.sunset) : "\u2014";
+  $("print-turnaround").textContent = derived.turnDist != null
+    ? fmtKm(derived.turnDist, 2) + (derived.turnaroundDeadline ? " (reach by " + fmtClock(derived.turnaroundDeadline) + ")" : "")
+    : "route length " + fmtKm(derived.profile.distanceM, 2);
+  $("print-back").textContent = derived.backBy ? fmtClock(derived.backBy) : (derived.dusk ? fmtClock(derived.dusk) : "\u2014");
+  const ul = $("print-bailouts");
+  ul.innerHTML = "";
+  derived.bailouts.forEach(function (b) {
+    const li = document.createElement("li");
+    li.textContent = (b.bailout.name || "Bailout") + " \u2014 " + fmtDuration(b.minutes) + (b.reachable ? " (in time)" : " (too late)");
+    ul.appendChild(li);
+  });
+  try { $("print-profile").src = profileChart.toDataUrl(); } catch (err) { /* ignore */ }
+}
+
 function shareModel(s) {
   const a = derived.analysis;
   const g = sumGain(derived.profile);
@@ -958,6 +990,12 @@ function wire() {
     modal.hidden = true;
     if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
   }
+  $("btn-print").addEventListener("click", function () {
+    populatePrintPlan();
+    window.print();
+  });
+  window.addEventListener("beforeprint", populatePrintPlan);
+
   $("btn-share").addEventListener("click", function () {
     shareData = shareModel(store.get());
     drawShareCard($("share-canvas"), shareData);
