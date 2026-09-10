@@ -35,12 +35,17 @@ Lastlight makes it a number you can glance at.
 - **Real daylight** - sunrise, sunset and civil/nautical/astronomical twilight
   computed on-device for your exact latitude and longitude. No API, no network.
 - **Group pace** - plan for the slowest member, so nobody gets left on the ridge.
+- **Pace calibration** - enter how long a hike actually took and the app refits
+  your speed factor to match it.
 - **Latest start** - the last time you can leave the trailhead and still be back
   before dark, plus a headlamp warning when the plan runs into twilight.
 - **Live GPS** - watch the clock update from your real position, with fix
   accuracy and off-route distance.
 - **Conditions** - an optional Open-Meteo forecast for the hike window.
 - **Shareable safety card** - a PNG and a text plan to send to someone staying home.
+- **Offline maps** - save the tiles around a route before you lose signal.
+- **Print a plan** - a clean sheet with the turnaround, timings and escape
+  points to leave with someone at home.
 - **Offline first** - a service worker and local storage keep it working with no
   signal, because that is exactly where it matters.
 
@@ -58,7 +63,7 @@ supply chain to trust on a mountain.
 ## Develop
 
 ```sh
-npm test      # 46 unit tests, no dependencies
+npm test      # 54 unit tests, no dependencies
 npm start     # dev server on http://localhost:5173 with live reload
 ```
 
@@ -94,15 +99,18 @@ Requires Node 20 or newer. There are no runtime dependencies.
 - [x] Shareable safety check-in card
 - [x] Live GPS tracking with route snapping
 - [x] Latest-start and headlamp-darkness planning
-- [ ] Personal pace calibration from recorded hikes
+- [x] Personal pace calibration from recorded hikes
+- [x] Offline map saving for the route area
+- [x] Printable trip plan
+- [x] Accessibility pass (labels, live region, focus management)
 - [ ] Multi-day and overnight planning
 - [ ] Turn-by-turn cue sheet export
 
 ## Screens
 
-| Turnaround alarm | Trip library | Share card |
-| --- | --- | --- |
-| ![Turnaround](docs/screens/app-turnaround.png) | ![Trips](docs/screens/app-trips.png) | ![Share](docs/screens/app-share.png) |
+| Turnaround alarm | Live GPS | Share card | Print plan |
+| --- | --- | --- | --- |
+| ![Turnaround](docs/screens/app-turnaround.png) | ![Live](docs/screens/app-live.png) | ![Share](docs/screens/app-share.png) | ![Print](docs/screens/app-print.png) |
 
 ## License
 
