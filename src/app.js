@@ -279,6 +279,13 @@ function renderVerdict(s) {
   }
   meter.style.width = pct.toFixed(0) + "%";
   meter.style.background = "var(--" + (a.verdict === "go" ? "go" : a.verdict === "caution" ? "caution" : a.verdict === "turn" ? "turn" : "past") + ")";
+
+  // Announce the decision, but not the ticking countdown, so the live region
+  // is useful rather than noisy.
+  const announce = verdictLabel(a.verdict) + ". " + (s.mode === "out-and-back" && derived.turnaroundDeadline
+    ? "Turn around at " + fmtKm(derived.turnDist || 0, 1) + ", start back by " + fmtClock(derived.turnaroundDeadline) + "."
+    : (derived.dusk ? "Finish by " + fmtClock(derived.dusk) + "." : ""));
+  if (announce !== lastAnnounce) { lastAnnounce = announce; $("sr-status").textContent = announce; }
 }
 
 function setKV(id, label, value) {
@@ -399,6 +406,10 @@ function renderDaylight(s) {
 function renderMap(s) {
   if (!map) return;
   $("empty-state").hidden = !derived.empty || s.drawMode;
+  $("map").setAttribute("aria-label", derived.empty
+    ? "Route map. No route loaded."
+    : "Route map for " + s.routeName + ", " + fmtKm(derived.turnDist || derived.profile.distanceM, 1) +
+      (derived.turnDist ? " to the turnaround." : " to the finish."));
   if (derived.empty) {
     map.setRoute([], null);
     map.position = null;
@@ -437,6 +448,7 @@ function renderProfileChart(s) {
 }
 
 let statusFlashUntil = 0;
+let lastAnnounce = "";
 
 // Show a temporary message in the status bar without the next render erasing it.
 function flashStatus(text) {
@@ -923,15 +935,30 @@ function wire() {
   const tripsModal = $("trips-modal");
   const shareModal = $("share-modal");
   let shareData = null;
+  let lastFocused = null;
+
+  // Move focus into a dialog and restore it on close, so keyboard and screen
+  // reader users are not dropped back at the top of the page.
+  function openModal(modal, opener) {
+    lastFocused = opener || document.activeElement;
+    modal.hidden = false;
+    const card = modal.querySelector(".modal-card");
+    if (card) card.focus();
+  }
+  function closeModal(modal) {
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
+  }
   $("btn-share").addEventListener("click", function () {
     shareData = shareModel(store.get());
     drawShareCard($("share-canvas"), shareData);
-    shareModal.hidden = false;
+    openModal(shareModal, $("btn-share"));
     if (navigator.share) $("share-native").hidden = false;
   });
-  $("share-close").addEventListener("click", function () { shareModal.hidden = true; });
+  $("share-close").addEventListener("click", function () { closeModal(shareModal); });
   shareModal.addEventListener("click", function (ev) {
-    if (ev.target === shareModal) shareModal.hidden = true;
+    if (ev.target === shareModal) closeModal(shareModal);
   });
   $("share-download").addEventListener("click", function () {
     $("share-canvas").toBlob(function (blob) {
@@ -960,18 +987,17 @@ function wire() {
     } catch (err) { /* cancelled */ }
   });
   $("btn-trips").addEventListener("click", function () {
-    tripsModal.hidden = false;
+    openModal(tripsModal, $("btn-trips"));
     renderTripList();
-    $("trip-name").focus();
   });
-  $("trips-close").addEventListener("click", function () { tripsModal.hidden = true; });
+  $("trips-close").addEventListener("click", function () { closeModal(tripsModal); });
   tripsModal.addEventListener("click", function (ev) {
-    if (ev.target === tripsModal) tripsModal.hidden = true;
+    if (ev.target === tripsModal) closeModal(tripsModal);
   });
   document.addEventListener("keydown", function (ev) {
     if (ev.key !== "Escape") return;
-    tripsModal.hidden = true;
-    $("share-modal").hidden = true;
+    closeModal(tripsModal);
+    closeModal(shareModal);
   });
 
   $("network-pill").hidden = navigator.onLine;

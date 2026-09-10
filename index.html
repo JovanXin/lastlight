@@ -44,6 +44,8 @@
     </div>
   </header>
 
+  <p class="sr-only" id="sr-status" role="status" aria-live="polite"></p>
+
   <main class="layout">
     <aside class="panel panel-left" aria-label="Trip setup">
       <section class="card">
@@ -156,7 +158,7 @@
     </aside>
 
     <section class="map-wrap" aria-label="Route map">
-      <canvas id="map"></canvas>
+      <canvas id="map" role="img" aria-label="Route map. Use the position slider or press the arrow keys to move along the route."></canvas>
       <div class="empty-state" id="empty-state" hidden>
         <strong>No route yet</strong>
         <span>Draw on the map, import a GPX, or pick a sample route.</span>
@@ -168,12 +170,12 @@
         <span class="hud-meta" id="hud-meta"></span>
       </div>
       <div class="map-controls">
-        <button class="map-btn" id="zoom-in" type="button" title="Zoom in">+</button>
-        <button class="map-btn" id="zoom-out" type="button" title="Zoom out">−</button>
-        <button class="map-btn" id="btn-fit2" type="button" title="Fit route">⤢</button>
-        <button class="map-btn" id="locate-btn" type="button" title="Use my location">◎</button>
-        <button class="map-btn" id="map-style" type="button" title="Toggle night / terrain map">◐</button>
-        <button class="map-btn" id="help-btn" type="button" title="Keyboard shortcuts">?</button>
+        <button class="map-btn" id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+        <button class="map-btn" id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+        <button class="map-btn" id="btn-fit2" type="button" title="Fit route" aria-label="Fit route on screen">⤢</button>
+        <button class="map-btn" id="locate-btn" type="button" title="Use my location" aria-label="Toggle live GPS">◎</button>
+        <button class="map-btn" id="map-style" type="button" title="Toggle night / terrain map" aria-label="Toggle night or terrain map">◐</button>
+        <button class="map-btn" id="help-btn" type="button" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">?</button>
       </div>
       <div class="map-hint" id="map-hint" hidden>Click to add a point · double-click to finish</div>
       <div class="legend">
@@ -242,7 +244,7 @@
   </footer>
 
   <div class="modal" id="trips-modal" hidden>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Trip library">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Trip library" tabindex="-1">
       <header class="modal-head">
         <h2>Trip library</h2>
         <button class="btn small ghost" id="trips-close" type="button">Close</button>
@@ -258,7 +260,7 @@
   </div>
 
   <div class="modal" id="share-modal" hidden>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Share trip plan">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Share trip plan" tabindex="-1">
       <header class="modal-head">
         <h2>Share trip plan</h2>
         <button class="btn small ghost" id="share-close" type="button">Close</button>
