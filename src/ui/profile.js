@@ -53,6 +53,9 @@ export class ElevationProfile {
 
   setPosition(dist) { this.positionDist = dist; this.render(); }
 
+  // PNG of the current chart, used by the printable plan sheet.
+  toDataUrl() { return this.canvas.toDataURL("image/png"); }
+
   _elevRange() {
     const pts = this.profile.points;
     let min = Infinity;
