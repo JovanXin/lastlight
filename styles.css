@@ -293,6 +293,20 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .hud-sub { font-size: 12px; color: var(--muted); }
 .hud-meta { font-size: 11px; color: var(--faint); margin-top: 5px; font-variant-numeric: tabular-nums; }
 
+/* ---------- readiness ---------- */
+.readiness { border-left: 3px solid var(--faint); }
+.readiness[data-level="idle"] { border-left-color: var(--faint); }
+.readiness[data-level="go"] { border-left-color: var(--go); }
+.readiness[data-level="caution"] { border-left-color: var(--caution); }
+.readiness[data-level="no-go"] { border-left-color: var(--past); }
+.readiness-kicker { font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+.readiness-title { display: block; font-size: 19px; margin: 3px 0; }
+.readiness[data-level="go"] .readiness-title { color: var(--go); }
+.readiness[data-level="caution"] .readiness-title { color: var(--caution); }
+.readiness[data-level="no-go"] .readiness-title { color: var(--past); }
+.readiness[data-level="idle"] .readiness-title { color: var(--muted); }
+.readiness-why { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 0; }
+
 /* ---------- verdict card ---------- */
 .verdict { position: relative; overflow: hidden; border-left: 3px solid var(--go); }
 .verdict[data-verdict="idle"] { border-left-color: var(--faint); }
