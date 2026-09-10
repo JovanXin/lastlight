@@ -5,6 +5,9 @@
 const TILE = 256;
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 18;
+// Turns light OpenStreetMap tiles into a night basemap without any tile server
+// that needs a key.
+const NIGHT_FILTER = "invert(1) hue-rotate(200deg) brightness(0.82) contrast(0.85) saturate(0.42)";
 
 function lonToWorldX(lon, worldSize) { return ((lon + 180) / 360) * worldSize; }
 
@@ -22,14 +25,26 @@ function worldYToLat(y, worldSize) {
 
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
+// One free basemap (OpenStreetMap, no API key). The night look is produced by
+// filtering the tiles on the canvas, so there is nothing to license or leak.
+export function makeTileUrl() {
+  return function (z, x, y) {
+    return "https://tile.openstreetmap.org/" + z + "/" + x + "/" + y + ".png";
+  };
+}
+
+export function attributionFor() {
+  return "\u00a9 OpenStreetMap contributors";
+}
+
 export class TrailMap {
   constructor(canvas, options) {
     const opts = options || {};
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.tileUrl = opts.tileUrl || function (z, x, y) {
-      return "https://tile.openstreetmap.org/" + z + "/" + x + "/" + y + ".png";
-    };
+    this.style = opts.style || "dark";
+    this.tileUrl = opts.tileUrl || makeTileUrl(this.style);
+    this.attribution = opts.attribution || attributionFor(this.style);
     this.center = opts.center || { lat: -36.8, lon: 174.8 };
     this.zoom = opts.zoom || 12;
     this.tiles = new Map();
@@ -121,6 +136,12 @@ export class TrailMap {
   }
 
   setTurnaround(point) { this.turnaround = point; }
+
+  setStyle(style) {
+    this.style = style;
+    this.attribution = attributionFor();
+    this.render();
+  }
   setBailouts(list) { this.bailouts = list || []; }
 
   // ---------- tiles ----------
@@ -175,21 +196,21 @@ export class TrailMap {
     const y1 = Math.min(n - 1, Math.floor((top + this.height) / TILE));
     const visible = new Set();
 
+    // The night look is a canvas filter over plain OSM tiles; the route and
+    // markers drawn below stay un-filtered.
+    ctx.filter = this.style === "terrain" ? "none" : NIGHT_FILTER;
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         const wx = ((x % n) + n) % n;
         visible.add(z + "/" + wx + "/" + y);
         const rec = this._tile(z, x, y);
+        if (rec.state !== "loaded") continue;
         const sx = Math.round(x * TILE - left);
         const sy = Math.round(y * TILE - top);
-        if (rec.state === "loaded") {
-          ctx.drawImage(rec.img, sx, sy, TILE + 1, TILE + 1);
-        } else {
-          ctx.fillStyle = ((x + y) & 1) ? "#0d1626" : "#0b1322";
-          ctx.fillRect(sx, sy, TILE + 1, TILE + 1);
-        }
+        ctx.drawImage(rec.img, sx, sy, TILE + 1, TILE + 1);
       }
     }
+    ctx.filter = "none";
     this._prune(visible);
 
     this._drawRoute(ctx);
@@ -201,7 +222,7 @@ export class TrailMap {
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
     ctx.fillStyle = "#8ea3c788";
     ctx.textAlign = "right";
-    ctx.fillText("© OpenStreetMap contributors", this.width - 8, this.height - 6);
+    ctx.fillText(this.attribution, this.width - 8, this.height - 6);
     ctx.textAlign = "left";
     if (this.drawMode) {
       ctx.fillStyle = "#ffb347";
