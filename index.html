@@ -35,6 +35,7 @@
     </div>
     <div class="top-actions">
       <span class="offline-pill" id="network-pill" hidden>offline</span>
+      <button class="btn primary" id="btn-share" type="button">Share plan</button>
       <button class="btn" id="btn-trips" type="button">Trips</button>
       <button class="btn" id="btn-import" type="button">Import GPX</button>
       <button class="btn ghost" id="btn-export" type="button">Export GPX</button>
@@ -236,6 +237,21 @@
       <ul class="trip-list" id="trip-list">
         <li class="empty">No saved trips yet.</li>
       </ul>
+    </div>
+  </div>
+
+  <div class="modal" id="share-modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Share trip plan">
+      <header class="modal-head">
+        <h2>Share trip plan</h2>
+        <button class="btn small ghost" id="share-close" type="button">Close</button>
+      </header>
+      <canvas id="share-canvas"></canvas>
+      <div class="modal-actions">
+        <button class="btn primary" id="share-download" type="button">Download image</button>
+        <button class="btn" id="share-copy" type="button">Copy plan text</button>
+        <button class="btn" id="share-native" type="button" hidden>Share\u2026</button>
+      </div>
     </div>
   </div>
 </div>

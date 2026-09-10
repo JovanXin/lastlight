@@ -14,6 +14,7 @@ import {
 } from "./ui/format.js";
 import { listTrips, saveTrip, deleteTrip, saveSession, loadSession, normalizeTrip, tripSummary } from "./services/storage.js";
 import { fetchWeather, summarizeWindow, fetchElevations } from "./services/weather.js";
+import { buildPlanText, drawShareCard } from "./ui/sharecard.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -346,6 +347,30 @@ let statusFlashUntil = 0;
 function flashStatus(text) {
   $("status").textContent = text;
   statusFlashUntil = Date.now() + 7000;
+}
+
+function shareModel(s) {
+  const a = derived.analysis;
+  const g = sumGain(derived.profile);
+  const l = sumLoss(derived.profile);
+  return {
+    routeName: s.routeName,
+    mode: s.mode,
+    distanceM: derived.totals.distanceM,
+    ascentM: s.mode === "out-and-back" ? g + l : g,
+    startTime: s.startTime,
+    sunrise: derived.sun.sunrise,
+    sunset: derived.sun.sunset,
+    dusk: derived.dusk,
+    turnaroundDistanceM: s.mode === "out-and-back" ? a.turnaroundDistanceM : null,
+    deadline: derived.turnaroundDeadline,
+    backBy: derived.backBy,
+    verdict: a.verdict,
+    bailouts: derived.bailouts.slice(0, 4).map(function (b) {
+      return { name: b.bailout.name, minutes: b.minutes, reachable: b.reachable };
+    }),
+    profile: derived.profile,
+  };
 }
 
 function renderStatus(s) {
@@ -699,6 +724,44 @@ function wire() {
   });
 
   const tripsModal = $("trips-modal");
+  const shareModal = $("share-modal");
+  let shareData = null;
+  $("btn-share").addEventListener("click", function () {
+    shareData = shareModel(store.get());
+    drawShareCard($("share-canvas"), shareData);
+    shareModal.hidden = false;
+    if (navigator.share) $("share-native").hidden = false;
+  });
+  $("share-close").addEventListener("click", function () { shareModal.hidden = true; });
+  shareModal.addEventListener("click", function (ev) {
+    if (ev.target === shareModal) shareModal.hidden = true;
+  });
+  $("share-download").addEventListener("click", function () {
+    $("share-canvas").toBlob(function (blob) {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = (store.get().routeName || "lastlight").toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-plan.png";
+      a.click();
+      URL.revokeObjectURL(url);
+    }, "image/png");
+  });
+  $("share-copy").addEventListener("click", async function () {
+    if (!shareData) return;
+    try {
+      await navigator.clipboard.writeText(buildPlanText(shareData));
+      flashStatus("Copied the trip plan to the clipboard.");
+    } catch (err) {
+      flashStatus("Copy failed: " + err.message);
+    }
+  });
+  $("share-native").addEventListener("click", async function () {
+    if (!shareData) return;
+    try {
+      await navigator.share({ title: shareData.routeName || "Lastlight plan", text: buildPlanText(shareData) });
+    } catch (err) { /* cancelled */ }
+  });
   $("btn-trips").addEventListener("click", function () {
     tripsModal.hidden = false;
     renderTripList();
@@ -709,7 +772,9 @@ function wire() {
     if (ev.target === tripsModal) tripsModal.hidden = true;
   });
   document.addEventListener("keydown", function (ev) {
-    if (ev.key === "Escape") tripsModal.hidden = true;
+    if (ev.key !== "Escape") return;
+    tripsModal.hidden = true;
+    $("share-modal").hidden = true;
   });
 
   $("network-pill").hidden = navigator.onLine;
