@@ -15,6 +15,7 @@ import {
 import { listTrips, saveTrip, deleteTrip, saveSession, loadSession, normalizeTrip, tripSummary } from "./services/storage.js";
 import { fetchWeather, summarizeWindow, fetchElevations } from "./services/weather.js";
 import { buildPlanText, drawShareCard } from "./ui/sharecard.js";
+import { projectOnRoute, watchLocation, isSupported } from "./services/location.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,6 +50,8 @@ const store = createStore({
   drawMode: false,
   weather: null,
   weatherStatus: "idle",
+  live: false,
+  lastFix: null,
 });
 
 let derived = null;
@@ -176,8 +179,21 @@ function renderHUD(s) {
     $("hud-sub").textContent = "finish by " + fmtClock(derived.dusk) + " · " + fmtKm(derived.totals.distanceM, 1) + " route";
   }
   const speedNow = currentSpeed(s);
-  $("hud-meta").textContent = fmtKm(s.distanceNow, 1) + " / " + fmtKm(derived.totals.distanceM, 1) +
-    " · " + speedNow + " · " + fmtClock(s.simTime);
+  const fix = s.live && s.lastFix ? "GPS \u00b1" + Math.round(s.lastFix.accuracyM || 0) + " m · " +
+    (s.lastFix.offsetM > 30 ? Math.round(s.lastFix.offsetM) + " m off route · " : "") : "";
+  $("hud-meta").textContent = fix + fmtKm(s.distanceNow, 1) + " / " + fmtKm(derived.totals.distanceM, 1) +
+    " \u00b7 " + speedNow + " \u00b7 " + fmtClock(s.simTime);
+
+  // Keep the position slider in step when GPS or the simulation moves us.
+  const total = derived.profile.distanceM || 1;
+  const slider = $("distance-now");
+  const next = String(Math.round((s.distanceNow / total) * 1000));
+  if (slider.value !== next) {
+    slider.value = next;
+    const fill = ((Number(next) - Number(slider.min)) / (Number(slider.max) - Number(slider.min))) * 100;
+    slider.style.setProperty("--fill", fill + "%");
+    $("distance-now-out").textContent = fmtKm(s.distanceNow, 1);
+  }
 }
 
 function currentSpeed(s) {
@@ -392,6 +408,7 @@ function renderStatus(s) {
 // Simulation
 // ---------------------------------------------------------------------------
 function startHike() {
+  stopLive();
   const s = store.get();
   derived = computeDerived(s);
   const a = derived.analysis;
@@ -448,6 +465,40 @@ function simStep(t) {
 }
 
 // ---------------------------------------------------------------------------
+// Live GPS
+// ---------------------------------------------------------------------------
+let stopWatch = null;
+
+function stopLive() {
+  if (stopWatch) { stopWatch(); stopWatch = null; }
+  if (store.get().live) store.set({ live: false });
+  const btn = $("locate-btn");
+  if (btn) btn.classList.remove("live");
+}
+
+function startLive() {
+  if (!isSupported()) { flashStatus("This browser has no geolocation support."); return; }
+  stopHike();
+  stopWatch = watchLocation(function (fix) {
+    const s = store.get();
+    if (!derived) return;
+    const proj = projectOnRoute(derived.profile, fix);
+    store.set({
+      distanceNow: proj.distanceM,
+      simTime: fix.at || new Date(),
+      live: true,
+      lastFix: { offsetM: proj.offsetM, accuracyM: fix.accuracyM },
+    });
+  }, function (err) {
+    flashStatus("Location error: " + (err.message || "unavailable"));
+    stopLive();
+  });
+  const btn = $("locate-btn");
+  if (btn) btn.classList.add("live");
+  flashStatus("Live tracking on \u2014 waiting for a GPS fix\u2026");
+}
+
+// ---------------------------------------------------------------------------
 // Controls
 // ---------------------------------------------------------------------------
 function attachRange(el, out, format, onChange) {
@@ -472,6 +523,7 @@ function setMode(mode) {
 
 function loadRoute(route, fit) {
   stopHike();
+  stopLive();
   store.set({
     savedId: null,
     routeId: route.id, routeName: route.name, track: route.track,
@@ -547,6 +599,7 @@ function wire() {
     const d = (val / 1000) * total;
     if (fire) {
       stopHike();
+      stopLive();
       $("btn-hike").textContent = "\u25b6 Run hike";
       store.set({ distanceNow: d, simTime: clockForPosition(s, d), simElapsed: 0 });
     }
@@ -586,6 +639,7 @@ function wire() {
   if (profileChart) {
     profileChart.onScrub = function (d) {
       stopHike();
+      stopLive();
       $("btn-hike").textContent = "\u25b6 Run hike";
       const s = store.get();
       store.set({ distanceNow: d, simTime: clockForPosition(s, d), simElapsed: 0 });
@@ -593,6 +647,9 @@ function wire() {
   }
 
   // map controls
+  $("locate-btn").addEventListener("click", function () {
+    if (store.get().live) stopLive(); else startLive();
+  });
   $("zoom-in").addEventListener("click", function () { map.zoomBy(1); });
   $("zoom-out").addEventListener("click", function () { map.zoomBy(-1); });
   const fit = function () { map.fitTo(derived ? derived.profile.points : store.get().track); map.render(); };
@@ -1019,6 +1076,10 @@ function boot() {
   store.subscribe(persistSession);
   render();
   renderTripList();
+  setInterval(function () {
+    const s = store.get();
+    if (s.live) store.set({ simTime: new Date() });
+  }, 1000);
   // Register the service worker for offline use, but never on localhost where
   // it would fight the dev server.
   if ("serviceWorker" in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {

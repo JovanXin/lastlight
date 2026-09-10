@@ -218,6 +218,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
   backdrop-filter: blur(6px);
 }
 .map-btn:hover { border-color: #354f7d; }
+.map-btn.live { border-color: var(--go); color: var(--go); box-shadow: 0 0 0 3px #34d39933; }
 .map-hint {
   position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
   background: #0c1526e6; border: 1px solid var(--line); color: var(--muted);
