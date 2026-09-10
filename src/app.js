@@ -835,6 +835,7 @@ function wire() {
   $("btn-elevation").addEventListener("click", async function () {
     const s = store.get();
     if (!s.track || s.track.length < 2) { flashStatus("Draw or import a route first."); return; }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) { flashStatus("Elevation lookup needs a connection."); return; }
     flashStatus("Looking up real elevations\u2026");
     try {
       const eles = await fetchElevations(s.track);
@@ -1018,6 +1019,10 @@ function scheduleWeather() {
 
 async function loadWeather() {
   const s = store.get();
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    store.set({ weather: null, weatherStatus: "error" });
+    return;
+  }
   if (!s.track || s.track.length < 2) {
     store.set({ weather: null, weatherStatus: "idle" });
     return;
@@ -1221,7 +1226,10 @@ function boot() {
   }, 1000);
   // Register the service worker for offline use, but never on localhost where
   // it would fight the dev server.
-  if ("serviceWorker" in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  // Register for offline use. Skipped on localhost so it cannot fight the dev
+  // server, unless explicitly requested with ?sw=1 for offline testing.
+  const wantWorker = location.search.indexOf("sw=1") !== -1;
+  if ("serviceWorker" in navigator && (wantWorker || !/^(localhost|127\.0\.0\.1)$/.test(location.hostname))) {
     navigator.serviceWorker.register("sw.js").catch(function () {});
   }
 }
