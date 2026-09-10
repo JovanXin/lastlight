@@ -59,6 +59,7 @@ export function normalizeTrip(raw) {
       movingRatio: Number(pace.movingRatio) || 0.85,
     },
     safetyMargin: raw.safetyMargin == null ? 30 : Number(raw.safetyMargin),
+    groupFactor: raw.groupFactor == null ? 1 : Number(raw.groupFactor),
     useCivil: raw.useCivil !== false,
     startTime: raw.startTime ? new Date(raw.startTime).toISOString() : null,
   };

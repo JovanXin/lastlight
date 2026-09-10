@@ -13,6 +13,7 @@ test("normalizeTrip fills defaults and coerces numbers", function () {
   assert.equal(trip.pace.speedFactor, 1);
   assert.equal(trip.pace.movingRatio, 0.85);
   assert.equal(trip.safetyMargin, 30);
+  assert.equal(trip.groupFactor, 1);
   assert.equal(trip.useCivil, true);
   assert.ok(trip.id);
 });
