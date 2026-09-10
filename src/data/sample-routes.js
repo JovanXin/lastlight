@@ -137,6 +137,38 @@ const RAW = [
       { name: "Skyline base", lat: -45.0312, lon: 168.6570, ele: 320 },
     ],
   },
+  {
+    id: "milford",
+    name: "Milford Track",
+    region: "Fiordland, Aotearoa",
+    mode: "loop",
+    blurb: "The classic multi-day traverse over Mackinnon Pass through Fiordland rainforest.",
+    seed: 71, wiggleM: 24,
+    controls: [
+      { lat: -45.5795, lon: 167.5600, ele: 60 },
+      { lat: -45.5620, lon: 167.5790, ele: 80 },
+      { lat: -45.5450, lon: 167.5560, ele: 100 },
+      { lat: -45.5270, lon: 167.5810, ele: 120 },
+      { lat: -45.5080, lon: 167.5560, ele: 150 },
+      { lat: -45.4830, lon: 167.5470, ele: 180 },
+      { lat: -45.4650, lon: 167.5750, ele: 260 },
+      { lat: -45.4470, lon: 167.5500, ele: 330 },
+      { lat: -45.4250, lon: 167.5270, ele: 500 },
+      { lat: -45.4120, lon: 167.5150, ele: 900 },
+      { lat: -45.4050, lon: 167.5050, ele: 1154 },
+      { lat: -45.3960, lon: 167.4990, ele: 800 },
+      { lat: -45.3860, lon: 167.5120, ele: 600 },
+      { lat: -45.3760, lon: 167.4850, ele: 500 },
+      { lat: -45.3680, lon: 167.4700, ele: 380 },
+      { lat: -45.3650, lon: 167.4780, ele: 300 },
+      { lat: -45.3560, lon: 167.4530, ele: 40 },
+    ],
+    bailouts: [
+      { name: "Clinton Hut", lat: -45.4830, lon: 167.5470, ele: 180 },
+      { name: "Mintaro Hut", lat: -45.4250, lon: 167.5270, ele: 500 },
+      { name: "Dumpling Hut", lat: -45.3650, lon: 167.4780, ele: 300 },
+    ],
+  },
 ];
 
 export const SAMPLE_ROUTES = RAW.map(function (r) {

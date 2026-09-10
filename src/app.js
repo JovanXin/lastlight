@@ -7,6 +7,7 @@ import { totalPlanMinutes, latestStart, feasibleFinish, darknessAt } from "./cor
 import { calibrateSpeedFactor, plannedMinutes, paceDelta } from "./core/calibrate.js";
 import { parseGpx, toGpx } from "./core/gpx.js";
 import { buildCueSheet, formatCueSheetText } from "./core/cuesheet.js";
+import { splitIntoDays } from "./core/multiday.js";
 import { SAMPLE_ROUTES, findRoute, buildTrack } from "./data/sample-routes.js";
 import { createStore } from "./ui/store.js";
 import { TrailMap } from "./ui/map.js";
@@ -128,6 +129,19 @@ function computeDerived(s) {
     : (analysis.slackMinutes == null || analysis.slackMinutes >= 0);
   const finishMs = feasibleFinish(s.startTime.getTime(), planMinutes, fits, dusk ? dusk.getTime() : null, s.safetyMargin);
   const finish = darknessAt(finishMs, sun.sunset ? sun.sunset.getTime() : null);
+  // Multi-day stages only make sense for a traverse; an out-and-back is a
+  // single push unless the walker chooses otherwise.
+  const days = s.mode === "loop"
+    ? splitIntoDays(profile, outbound, {
+        startMs: s.startTime.getTime(),
+        dayStartMinutes: 480,
+        // A loaded multi-day pack means a shorter walking day than the full
+        // daylight window.
+        dayLengthMinutes: Math.min(sun.sunset && sun.sunrise ? (sun.sunset - sun.sunrise) / 60000 : 600, 420),
+        marginMinutes: s.safetyMargin,
+        stopDistances: bailouts.map(function (b) { return b.routeDist; }),
+      })
+    : [];
 
   return {
     empty: empty,
@@ -139,6 +153,7 @@ function computeDerived(s) {
     planMinutes: planMinutes,
     latestStartAt: latestStartAt,
     finish: finish,
+    days: days,
   };
 }
 
@@ -185,6 +200,7 @@ function render() {
   renderVerdict(s);
   renderTurnaroundCard(s);
   renderStats(s);
+  renderStages(s);
   renderBailouts(s);
   renderDaylight(s);
   renderConditions(s);
@@ -363,6 +379,29 @@ function gains(profile) {
 }
 function sumGain(profile) { return gains(profile).gain; }
 function sumLoss(profile) { return gains(profile).loss; }
+
+function renderStages(s) {
+  const card = $("stages-card");
+  const days = derived.days || [];
+  card.hidden = days.length < 2;
+  $("stages-count").textContent = String(days.length || 1);
+  const list = $("stages-list");
+  list.innerHTML = "";
+  if (days.length < 2) return;
+  days.forEach(function (d) {
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "stage-name";
+    name.textContent = "Day " + d.day;
+    const detail = document.createElement("span");
+    detail.className = "stage-detail";
+    detail.textContent = fmtKm(d.distanceM, 1) + " \u00b7 +" + Math.round(d.ascentM) + " m" +
+      (d.startAt ? " \u00b7 " + fmtClock(d.startAt) + "\u2013" + fmtClock(d.endAt) : " \u00b7 " + fmtDuration(d.minutes));
+    li.appendChild(name);
+    li.appendChild(detail);
+    list.appendChild(li);
+  });
+}
 
 function renderBailouts(s) {
   const list = $("bailout-list");
