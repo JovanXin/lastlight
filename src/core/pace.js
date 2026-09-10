@@ -78,6 +78,31 @@ export function buildSchedule(profile, pace, options) {
   };
 }
 
+// Inverse of minutesAtDistance: the distance reached after N minutes.
+export function distanceAtMinutes(schedule, minutes) {
+  const pts = schedule.points;
+  const cum = schedule.cumulativeMinutes;
+  const n = pts.length;
+  if (!n) return 0;
+  const ascending = pts[n - 1].dist >= pts[0].dist;
+  if (ascending) {
+    if (minutes <= cum[0]) return pts[0].dist;
+    if (minutes >= cum[n - 1]) return pts[n - 1].dist;
+  } else {
+    if (minutes <= cum[0]) return pts[0].dist;
+    if (minutes >= cum[n - 1]) return pts[n - 1].dist;
+  }
+  let lo = 0;
+  let hi = n - 1;
+  while (lo + 1 < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cum[mid] <= minutes) lo = mid; else hi = mid;
+  }
+  const span = cum[hi] - cum[lo];
+  const t = span > 0 ? (minutes - cum[lo]) / span : 0;
+  return pts[lo].dist + (pts[hi].dist - pts[lo].dist) * t;
+}
+
 // Overall route statistics independent of pacing.
 export function routeStats(profile) {
   const g = elevationGainLoss(profile);

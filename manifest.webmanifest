@@ -1,0 +1,15 @@
+{
+  "name": "Lastlight \u2014 know your turnaround",
+  "short_name": "Lastlight",
+  "description": "Offline-first hiking turnaround and bailout intelligence.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070b14",
+  "theme_color": "#070b14",
+  "categories": ["navigation", "health", "travel"],
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

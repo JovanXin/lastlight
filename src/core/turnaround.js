@@ -69,18 +69,24 @@ export function analyzeOutAndBack(profile, options) {
   const elapsedNow = (nowMs - startMs) / 60000;
   const projectedFinishMinutes = outbound.totalMinutes + inbound.totalMinutes;
 
-  // Latest clock time you may start heading back from where you stand now.
-  const turnAroundTimeMs = duskMs == null ? null : duskMs - margin * 60000 - returnFromNow * 60000;
-  const minutesUntilTurn = turnAroundTimeMs == null ? null : (turnAroundTimeMs - nowMs) / 60000;
+  const returnFromTurn = returnMinutesAt(inbound, turnaround.distanceM);
+
+  // Strategic deadline: the clock time by which you must reach the furthest
+  // safe point, because after it the return leg no longer fits before dusk.
+  const deadlineToReachTurnMs = duskMs == null ? null : duskMs - margin * 60000 - returnFromTurn * 60000;
+  const minutesUntilTurn = deadlineToReachTurnMs == null ? null : (deadlineToReachTurnMs - nowMs) / 60000;
+
+  // Tactical deadline: the last moment you may start back from where you stand
+  // right now. Missing this one is what turns a long day into a night out.
+  const latestTurnFromNowMs = duskMs == null ? null : duskMs - margin * 60000 - returnFromNow * 60000;
+  const minutesUntilMustTurn = latestTurnFromNowMs == null ? null : (latestTurnFromNowMs - nowMs) / 60000;
 
   let verdict = VERDICT.GO;
-  if (minutesUntilTurn == null) {
-    verdict = VERDICT.GO;
-  } else if (minutesUntilTurn <= 0) {
+  if (minutesUntilMustTurn != null && minutesUntilMustTurn <= 0) {
     verdict = VERDICT.PAST;
-  } else if (minutesUntilTurn <= Math.max(10, margin / 3)) {
+  } else if (minutesUntilTurn != null && minutesUntilTurn <= 0) {
     verdict = VERDICT.TURN;
-  } else if (minutesUntilTurn <= Math.max(25, margin)) {
+  } else if (minutesUntilTurn != null && minutesUntilTurn <= Math.max(15, margin / 2)) {
     verdict = VERDICT.CAUTION;
   }
 
@@ -101,8 +107,12 @@ export function analyzeOutAndBack(profile, options) {
     travelBudgetMinutes: projectedFinishMinutes + margin,
     turnaroundDistanceM: turnaround.distanceM,
     turnaroundFromStartM: turnaround.distanceM,
-    turnaroundTime: turnAroundTimeMs == null ? null : new Date(turnAroundTimeMs),
+    returnMinutesFromTurn: returnFromTurn,
+    deadlineToReachTurn: deadlineToReachTurnMs == null ? null : new Date(deadlineToReachTurnMs),
     minutesUntilTurnaround: minutesUntilTurn,
+    latestTurnFromNow: latestTurnFromNowMs == null ? null : new Date(latestTurnFromNowMs),
+    minutesUntilMustTurn: minutesUntilMustTurn,
+    turnaroundTime: latestTurnFromNowMs == null ? null : new Date(latestTurnFromNowMs),
     verdict: verdict,
     wholeTripFits: wholeTripFits,
     schedules: { outbound: outbound, inbound: inbound },

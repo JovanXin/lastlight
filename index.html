@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Lastlight — know your turnaround</title>
+<meta name="description" content="Offline-first hiking turnaround and bailout intelligence. Know how much further you can safely go before dark." />
+<meta name="theme-color" content="#070b14" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs>
+          <linearGradient id="sun-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffd98a" />
+            <stop offset="1" stop-color="#ff7a3d" />
+          </linearGradient>
+        </defs>
+        <circle cx="16" cy="12" r="6.5" fill="url(#sun-grad)" />
+        <path d="M1.5 26.5 L11 14.5 L16.5 21 L21.5 13.5 L30.5 26.5 Z" fill="#0b1526" stroke="#8ea3c7" stroke-width="1.3" stroke-linejoin="round" />
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">Lastlight</span>
+        <span class="brand-tag">know your turnaround</span>
+      </div>
+    </div>
+    <div class="daylight" id="daylight-badge" title="Daylight at the route start">
+      <span class="sun-ico" aria-hidden="true">☀</span>
+      <span id="daylight-text">loading…</span>
+    </div>
+    <div class="top-actions">
+      <span class="offline-pill" id="network-pill" hidden>offline</span>
+      <button class="btn" id="btn-import" type="button">Import GPX</button>
+      <button class="btn ghost" id="btn-export" type="button">Export GPX</button>
+      <button class="btn ghost danger" id="btn-clear" type="button">Clear</button>
+      <input type="file" id="file-gpx" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden />
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel panel-left" aria-label="Trip setup">
+      <section class="card">
+        <h2 class="card-title">Route</h2>
+        <label class="field">
+          <span class="field-label">Sample routes</span>
+          <select id="route-select"></select>
+        </label>
+        <div class="btn-row">
+          <button class="btn small" id="btn-draw" type="button">Draw on map</button>
+          <button class="btn small" id="btn-fit" type="button">Fit</button>
+        </div>
+        <p class="hint" id="draw-hint">Click the map to add points. Double-click to finish.</p>
+        <div class="segmented" id="mode-buttons" role="group" aria-label="Trip mode">
+          <button type="button" data-mode="out-and-back" class="is-active">Out &amp; back</button>
+          <button type="button" data-mode="loop">Thru / loop</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">When</h2>
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">Date</span>
+            <input type="date" id="start-date" />
+          </label>
+          <label class="field">
+            <span class="field-label">Start time</span>
+            <input type="time" id="start-time" />
+          </label>
+        </div>
+        <label class="field">
+          <span class="field-label">Safety margin <b id="safety-margin-out">30 min</b></span>
+          <input type="range" id="safety-margin" min="0" max="90" step="5" value="30" />
+        </label>
+        <label class="check">
+          <input type="checkbox" id="use-civil" checked />
+          <span>Use end of civil twilight, not sunset</span>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Pace</h2>
+        <label class="field">
+          <span class="field-label">Speed factor <b id="speed-factor-out">1.00×</b></span>
+          <input type="range" id="speed-factor" min="0.6" max="1.4" step="0.01" value="1" />
+        </label>
+        <div class="btn-row tight">
+          <button class="chip" data-pace="0.8" type="button">Relaxed</button>
+          <button class="chip" data-pace="1" type="button">Steady</button>
+          <button class="chip" data-pace="1.2" type="button">Strong</button>
+        </div>
+        <label class="field">
+          <span class="field-label">Moving ratio <b id="moving-ratio-out">85%</b></span>
+          <input type="range" id="moving-ratio" min="0.5" max="1" step="0.01" value="0.85" />
+        </label>
+        <p class="hint">Moving ratio is the share of elapsed time you spend actually walking — breaks, photos and route-finding live in the rest.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Simulate a hike</h2>
+        <label class="field">
+          <span class="field-label">Position along route <b id="distance-now-out">0.0 km</b></span>
+          <input type="range" id="distance-now" min="0" max="1000" step="1" value="0" />
+        </label>
+        <label class="field">
+          <span class="field-label">Behind schedule <b id="delay-out">on time</b></span>
+          <input type="range" id="delay" min="-30" max="720" step="5" value="0" />
+        </label>
+        <div class="btn-row">
+          <button class="btn primary" id="btn-hike" type="button">▶ Run hike</button>
+          <button class="btn small" id="btn-reset" type="button">Reset</button>
+          <select id="sim-speed" class="mini" aria-label="Simulation speed">
+            <option value="30">30×</option>
+            <option value="60" selected>60×</option>
+            <option value="180">180×</option>
+          </select>
+        </div>
+        <p class="hint">Runs a virtual hiker along the route at your pace, so you can watch the turnaround clock and verdict change.</p>
+      </section>
+    </aside>
+
+    <section class="map-wrap" aria-label="Route map">
+      <canvas id="map"></canvas>
+      <div class="hud" id="hud" data-verdict="go">
+        <span class="hud-label" id="hud-label">Turn in</span>
+        <span class="hud-time" id="hud-time">—</span>
+        <span class="hud-sub" id="hud-sub">set a route to begin</span>
+        <span class="hud-meta" id="hud-meta"></span>
+      </div>
+      <div class="map-controls">
+        <button class="map-btn" id="zoom-in" type="button" title="Zoom in">+</button>
+        <button class="map-btn" id="zoom-out" type="button" title="Zoom out">−</button>
+        <button class="map-btn" id="btn-fit2" type="button" title="Fit route">⤢</button>
+      </div>
+      <div class="map-hint" id="map-hint" hidden>Click to add a point · double-click to finish</div>
+      <div class="legend">
+        <span><i class="dot start"></i>start</span>
+        <span><i class="dot turn"></i>turnaround</span>
+        <span><i class="dot pos"></i>you</span>
+        <span><i class="dot bail"></i>bailout</span>
+      </div>
+    </section>
+
+    <aside class="panel panel-right" aria-label="Live assessment">
+      <section class="card verdict" id="verdict-card" data-verdict="go">
+        <span class="verdict-kicker" id="verdict-kicker">Assessment</span>
+        <strong class="verdict-title" id="verdict-title">Ready</strong>
+        <span class="verdict-sub" id="verdict-sub">Choose or draw a route.</span>
+        <div class="meter"><span id="verdict-meter"></span></div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Turnaround</h2>
+        <div class="big-stat">
+          <span class="big-stat-value" id="ta-distance">—</span>
+          <span class="big-stat-label">furthest safe point</span>
+        </div>
+        <dl class="kv">
+          <div><dt>Turn around at</dt><dd id="ta-time">—</dd></div>
+          <div><dt>Back at trailhead</dt><dd id="ta-back">—</dd></div>
+          <div><dt>Daylight left</dt><dd id="ta-daylight">—</dd></div>
+        </dl>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Route</h2>
+        <div class="stats">
+          <div class="stat"><span id="stat-distance">—</span><label>distance</label></div>
+          <div class="stat"><span id="stat-ascent">—</span><label>ascent</label></div>
+          <div class="stat"><span id="stat-descent">—</span><label>descent</label></div>
+          <div class="stat"><span id="stat-time">—</span><label>est. time</label></div>
+        </div>
+      </section>
+
+      <section class="card grow">
+        <h2 class="card-title">Bailout radar <span class="pill" id="bailout-count">0</span></h2>
+        <p class="hint">Ways off the hill from your current position, ranked by time to reach them before the light goes.</p>
+        <ul class="bailout-list" id="bailout-list"></ul>
+      </section>
+    </aside>
+  </main>
+
+  <section class="profile-wrap" aria-label="Elevation profile">
+    <div class="profile-head">
+      <h2 class="card-title">Elevation profile</h2>
+      <div class="profile-meta" id="profile-meta">—</div>
+      <div class="profile-tools">
+        <span class="hint" id="profile-hint">Drag the line to move your position.</span>
+      </div>
+    </div>
+    <canvas id="profile"></canvas>
+  </section>
+
+  <footer class="statusbar">
+    <span id="status">Ready.</span>
+    <span class="status-right">Lastlight · offline-first · <a href="https://github.com/JovanXin/lastlight" target="_blank" rel="noopener">source</a></span>
+  </footer>
+</div>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>

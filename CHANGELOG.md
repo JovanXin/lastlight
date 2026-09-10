@@ -18,3 +18,16 @@ All notable changes to Lastlight are recorded here. The format follows
 - Dependency-free GPX 1.1 import/export.
 - 28 unit tests covering every core module.
 - MIT license, README and project scaffolding.
+
+### Added (application)
+- Zero-dependency canvas slippy-map engine with OpenStreetMap tiles, panning,
+  pinch zoom, route drawing, and click-to-add waypoints.
+- Elevation profile chart with gradient area fill, bailout ticks, a turnaround
+  marker and pointer scrubbing to move the hiker.
+- Live HUD, verdict card, turnaround card and bailout radar wired to the core
+  engines, including a "behind schedule" control for stress-testing.
+- Strategic vs tactical turnaround deadlines: how long until the furthest safe
+  point becomes unreachable, versus the last moment to start back from here.
+- Two simulated-hike modes: a scripted playback and manual position scrubbing.
+- Offline PWA: web manifest, service-worker shell cache and tile caching.
+- GPX 1.1 import and export from the UI.

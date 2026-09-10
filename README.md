@@ -10,6 +10,8 @@ Existing apps show you a line on a map. Lastlight runs a live **turnaround clock
 that folds together the terrain still ahead, your actual pace, the daylight left,
 your safety margin, and the nearest way out.
 
+![Lastlight showing a live turnaround](docs/screens/app-initial.png)
+
 ---
 
 ## The idea
@@ -61,10 +63,12 @@ Requires Node 20 or newer. There are no runtime dependencies.
 ## Roadmap
 
 - [x] Core geodesy, pacing, solar and turnaround engines with tests
-- [ ] Interactive route planner and elevation profile
-- [ ] Live HUD with the turnaround clock and verdict
-- [ ] Bailout radar on the map
-- [ ] Offline PWA (service worker + local route store)
+- [x] Canvas map engine, route drawing, GPX import/export
+- [x] Elevation profile with live position scrubbing
+- [x] Live turnaround HUD, verdicts and the "behind schedule" stress test
+- [x] Bailout radar on the map
+- [x] Offline PWA shell (service worker, tile caching)
+- [ ] Local route store and trip history (IndexedDB)
 - [ ] Weather window and elevation lookups
 - [ ] Personal pace calibration from recorded hikes
 - [ ] Group mode: pace to the slowest member
