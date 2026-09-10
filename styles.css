@@ -389,7 +389,11 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
   .layout { grid-template-columns: 1fr; padding: 10px; }
   .panel { overflow: visible; }
   .panel-right { grid-template-columns: 1fr; }
-  .map-wrap { height: 60vh; }
+  /* On a phone the map and the live verdict come first; the setup cards,
+     which you only touch before setting off, come last. */
+  .map-wrap { order: 1; height: 62vh; min-height: 340px; }
+  .panel-right { order: 2; }
+  .panel-left { order: 3; }
   .profile-wrap { height: 160px; margin: 0 10px 10px; }
   .statusbar { padding: 8px 12px 14px; }
 }
