@@ -26,6 +26,7 @@ const LIVE_SCRIPT =
   '<script>(function(){try{var s=new EventSource("/__reload");' +
   's.onmessage=function(){location.reload();};}catch(e){}})();</script>';
 
+const WATCH_EXT = new Set([".js", ".mjs", ".css", ".html", ".json", ".webmanifest", ".svg"]);
 const clients = new Set();
 let reloadTimer = null;
 
@@ -41,6 +42,8 @@ function startWatcher() {
     fs.watch(root, { recursive: true }, function (event, filename) {
       if (!filename) return;
       if (filename.startsWith(".git") || filename.includes("node_modules")) return;
+      if (filename.startsWith("docs")) return;
+      if (!WATCH_EXT.has(path.extname(filename).toLowerCase())) return;
       clearTimeout(reloadTimer);
       reloadTimer = setTimeout(broadcast, 90);
     });
@@ -94,7 +97,11 @@ const server = http.createServer(function (req, res) {
   });
 });
 
-server.listen(port, function () {
+// Bind IPv4 explicitly (0.0.0.0). WSL2's Windows relay (wslrelay.exe) mirrors
+// listening sockets by address family: a default IPv6 (::) bind is exposed to
+// Windows only on [::1], so the common http://127.0.0.1:<port>/ URL is refused.
+// An IPv4 bind is mirrored to Windows 127.0.0.1 as well as localhost.
+server.listen(port, "0.0.0.0", function () {
   console.log("Lastlight dev server: http://localhost:" + port + "/");
   console.log("Open http://127.0.0.1:" + port + "/ — live reload is on.");
 });
