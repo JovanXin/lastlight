@@ -415,6 +415,7 @@ function renderMap(s) {
     map.position = null;
     map.setTurnaround(null);
     map.setBailouts([]);
+    map.setBailoutLinks([]);
     map.render();
     return;
   }
@@ -424,6 +425,11 @@ function renderMap(s) {
   map.setBailouts(derived.bailouts.map(function (b) {
     return { lat: b.bailout.lat, lon: b.bailout.lon, name: b.bailout.name, reachable: b.reachable };
   }));
+  // Escape lines from where you are, so the radar is readable at a glance.
+  const from = derived.current || derived.profile.points[0];
+  map.setBailoutLinks(from ? derived.bailouts.map(function (b) {
+    return { from: from, to: b.bailout, reachable: b.reachable };
+  }) : []);
   map.render();
 }
 
