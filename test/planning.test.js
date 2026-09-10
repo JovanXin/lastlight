@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { totalPlanMinutes, latestStart, analyzeFinish } from "../src/core/planning.js";
+import { totalPlanMinutes, latestStart, analyzeFinish, feasibleFinish, darknessAt } from "../src/core/planning.js";
 import { buildSchedule } from "../src/core/pace.js";
 import { buildProfile } from "../src/core/geo.js";
 import { makeLineTrack } from "./helpers.js";
@@ -25,6 +25,22 @@ test("latestStart backs off the plan duration and the margin", function () {
 
 test("latestStart returns null without a dusk (polar day)", function () {
   assert.equal(latestStart(null, 30, 300), null);
+});
+
+test("feasibleFinish uses the full plan when it fits and the dusk margin when it does not", function () {
+  const start = new Date(2026, 8, 11, 8, 0).getTime();
+  const dusk = new Date(2026, 8, 11, 18, 34).getTime();
+  assert.equal(feasibleFinish(start, 300, true, dusk, 30), start + 300 * 60000);
+  assert.equal(feasibleFinish(start, 900, false, dusk, 30), dusk - 30 * 60000);
+  assert.equal(feasibleFinish(start, 900, false, null, 30), start + 900 * 60000);
+});
+
+test("darknessAt flags a finish after sunset", function () {
+  const sunset = new Date(2026, 8, 11, 18, 30).getTime();
+  assert.equal(darknessAt(sunset - 60000, sunset).needHeadlamp, false);
+  const late = darknessAt(sunset + 45 * 60000, sunset);
+  assert.equal(late.needHeadlamp, true);
+  assert.ok(Math.abs(late.darkMinutes - 45) < 1e-6);
 });
 
 test("analyzeFinish reports time after sunset", function () {

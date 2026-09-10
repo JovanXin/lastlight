@@ -13,9 +13,17 @@ export function latestStart(duskMs, marginMinutes, planMinutes) {
   return new Date(duskMs - (Number(marginMinutes) || 0) * 60000 - (Number(planMinutes) || 0) * 60000);
 }
 
-// When the plan finishes, and how much of it happens after sunset.
-export function analyzeFinish(startMs, planMinutes, sunsetMs) {
-  const finishMs = startMs + (Number(planMinutes) || 0) * 60000;
+// The finish time you will actually experience. If the whole route fits, that
+// is start plus the full plan; if it does not, good practice is to turn at the
+// safe point and be back by dusk minus the margin.
+export function feasibleFinish(startMs, planMinutes, fits, duskMs, marginMinutes) {
+  const full = startMs + (Number(planMinutes) || 0) * 60000;
+  if (fits !== false || duskMs == null) return full;
+  return duskMs - (Number(marginMinutes) || 0) * 60000;
+}
+
+// How much of a finish happens after sunset.
+export function darknessAt(finishMs, sunsetMs) {
   const darkMinutes = sunsetMs == null ? 0 : Math.max(0, (finishMs - sunsetMs) / 60000);
   return {
     finishMs: finishMs,
@@ -23,4 +31,8 @@ export function analyzeFinish(startMs, planMinutes, sunsetMs) {
     darkMinutes: darkMinutes,
     needHeadlamp: darkMinutes > 0,
   };
+}
+
+export function analyzeFinish(startMs, planMinutes, sunsetMs) {
+  return darknessAt(startMs + (Number(planMinutes) || 0) * 60000, sunsetMs);
 }
