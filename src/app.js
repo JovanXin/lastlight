@@ -150,6 +150,20 @@ function nearestRouteDist(profile, point) {
   return best;
 }
 
+// Move the scenario position by a small, fixed step (keyboard nudging).
+function nudgePosition(deltaM) {
+  if (!derived || derived.empty) return;
+  const s = store.get();
+  stopHike();
+  stopLive();
+  const d = clamp(s.distanceNow + deltaM, 0, derived.profile.distanceM);
+  store.set({ distanceNow: d, simTime: clockForPosition(s, d), simElapsed: 0 });
+}
+
+function showShortcuts() {
+  flashStatus("Space run/pause \u00b7 \u2190 \u2192 move 100 m \u00b7 D draw \u00b7 T trips \u00b7 S share \u00b7 L live GPS \u00b7 F fit \u00b7 ? help");
+}
+
 // Scenario clock for a position: the planned arrival time, offset by however
 // far behind (or ahead of) schedule the hiker is.
 function clockForPosition(s, distanceM) {
@@ -729,6 +743,22 @@ function wire() {
   const fit = function () { map.fitTo(derived ? derived.profile.points : store.get().track); map.render(); };
   $("btn-fit").addEventListener("click", fit);
   $("btn-fit2").addEventListener("click", fit);
+  $("help-btn").addEventListener("click", showShortcuts);
+
+  document.addEventListener("keydown", function (ev) {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const tag = ev.target && ev.target.tagName;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    if (ev.key === " ") { ev.preventDefault(); $("btn-hike").click(); }
+    else if (ev.key === "ArrowRight") { ev.preventDefault(); nudgePosition(100); }
+    else if (ev.key === "ArrowLeft") { ev.preventDefault(); nudgePosition(-100); }
+    else if (ev.key === "f" || ev.key === "F") fit();
+    else if (ev.key === "d" || ev.key === "D") $("btn-draw").click();
+    else if (ev.key === "t" || ev.key === "T") $("btn-trips").click();
+    else if (ev.key === "s" || ev.key === "S") $("btn-share").click();
+    else if (ev.key === "l" || ev.key === "L") $("locate-btn").click();
+    else if (ev.key === "?" || ev.key === "/") showShortcuts();
+  });
 
   // draw mode
   $("btn-draw").addEventListener("click", function () {
@@ -748,11 +778,26 @@ function wire() {
   });
   map.onMapClick = function (lat, lon) {
     const s = store.get();
-    if (!s.drawMode) return;
-    map.drawPoints.push({ lat: lat, lon: lon, ele: estimateEle(lat, lon) });
-    map.route = map.drawPoints.slice();
-    map.routeProfile = null;
-    map.render();
+    if (s.drawMode) {
+      map.drawPoints.push({ lat: lat, lon: lon, ele: estimateEle(lat, lon) });
+      map.route = map.drawPoints.slice();
+      map.routeProfile = null;
+      map.render();
+      return;
+    }
+    // Outside draw mode a tap answers the planning question "what if I am
+    // here?" by snapping to the nearest point on the route.
+    if (derived.empty) return;
+    const proj = projectOnRoute(derived.profile, { lat: lat, lon: lon });
+    stopHike();
+    stopLive();
+    store.set({
+      distanceNow: proj.distanceM,
+      simTime: clockForPosition(s, proj.distanceM),
+      simElapsed: 0,
+    });
+    flashStatus("Position set to " + fmtKm(proj.distanceM, 2) + " along the route" +
+      (proj.offsetM > 50 ? " (" + Math.round(proj.offsetM) + " m off route)" : "") + ".");
   };
   map.onDrawFinish = function () {
     const s = store.get();
