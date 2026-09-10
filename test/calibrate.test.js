@@ -7,21 +7,25 @@ import { makeLineTrack } from "./helpers.js";
 const PACE = { speedFactor: 1, movingRatio: 1, minSpeedKph: 0.3 };
 const profile = buildProfile(makeLineTrack(5000, { stepM: 100 }));
 
-test("plannedMinutes matches the schedule", function () {
-  const planned = plannedMinutes(profile, PACE);
-  assert.ok(Math.abs(planned - 59.56) < 0.6, "planned " + planned);
+test("plannedMinutes uses the configured mode", function () {
+  const outAndBack = plannedMinutes(profile, PACE, "out-and-back");
+  const loop = plannedMinutes(profile, PACE, "loop");
+  assert.ok(Math.abs(outAndBack - 119.1) < 1, "out and back " + outAndBack);
+  assert.ok(Math.abs(loop - 59.56) < 0.6, "loop " + loop);
+  assert.ok(Math.abs(outAndBack - 2 * loop) < 0.5);
 });
 
-test("calibrating to a slower hike lowers the speed factor", function () {
-  const res = calibrateSpeedFactor(profile, PACE, 70);
+test("calibrating to a slower round trip lowers the speed factor", function () {
+  // The 5 km route takes 59.56 min each way at factor 1, so 140 min total
+  // implies about 0.85x the model's speed.
+  const res = calibrateSpeedFactor(profile, PACE, 140, { mode: "out-and-back" });
   assert.equal(res.matched, true);
-  // 5 km in 70 min implies about 0.85x the model's speed.
   assert.ok(Math.abs(res.speedFactor - 0.851) < 0.02, "factor " + res.speedFactor);
 });
 
 test("calibrating to the planned time returns roughly one", function () {
-  const planned = plannedMinutes(profile, PACE);
-  const res = calibrateSpeedFactor(profile, PACE, planned);
+  const planned = plannedMinutes(profile, PACE, "out-and-back");
+  const res = calibrateSpeedFactor(profile, PACE, planned, { mode: "out-and-back" });
   assert.equal(res.matched, true);
   assert.ok(Math.abs(res.speedFactor - 1) < 0.01, "factor " + res.speedFactor);
 });

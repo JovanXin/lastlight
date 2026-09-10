@@ -3,8 +3,16 @@
 // the speed factor and leaves the moving ratio to the user.
 import { buildSchedule, sanitizePace } from "./pace.js";
 
-export function plannedMinutes(profile, pace) {
-  return buildSchedule(profile, sanitizePace(pace)).totalMinutes;
+// Elapsed time for the trip as configured: the sum of the out and back legs,
+// or a single traverse for a loop.
+function elapsedFor(profile, pace, mode) {
+  const out = buildSchedule(profile, pace).totalMinutes;
+  if (mode === "loop") return out;
+  return out + buildSchedule(profile, pace, { reverse: true }).totalMinutes;
+}
+
+export function plannedMinutes(profile, pace, mode) {
+  return elapsedFor(profile, sanitizePace(pace), mode || "out-and-back");
 }
 
 // Find the speed factor whose planned elapsed time matches an actual elapsed
@@ -12,6 +20,7 @@ export function plannedMinutes(profile, pace) {
 export function calibrateSpeedFactor(profile, pace, actualMinutes, options) {
   const opts = options || {};
   const base = sanitizePace(pace);
+  const mode = opts.mode || "out-and-back";
   const target = Number(actualMinutes);
   const lo = opts.minFactor == null ? 0.2 : Number(opts.minFactor);
   const hi = opts.maxFactor == null ? 3 : Number(opts.maxFactor);
@@ -19,7 +28,7 @@ export function calibrateSpeedFactor(profile, pace, actualMinutes, options) {
     return { speedFactor: base.speedFactor, matched: false, reason: "invalid" };
   }
   const elapsedAt = function (k) {
-    return buildSchedule(profile, Object.assign({}, base, { speedFactor: k })).totalMinutes;
+    return elapsedFor(profile, Object.assign({}, base, { speedFactor: k }), mode);
   };
   if (elapsedAt(hi) > target) return { speedFactor: hi, matched: false, reason: "too-fast" };
   if (elapsedAt(lo) < target) return { speedFactor: lo, matched: false, reason: "too-slow" };
