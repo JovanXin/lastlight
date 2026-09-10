@@ -55,6 +55,7 @@ export class TrailMap {
     this.position = null;
     this.turnaround = null;
     this.bailouts = [];
+    this.bailoutLinks = [];
     this.drawMode = false;
     this.drawPoints = [];
     this.onMapClick = null;
@@ -144,6 +145,9 @@ export class TrailMap {
   }
   setBailouts(list) { this.bailouts = list || []; }
 
+  // Dashed lines from the current position to each escape point.
+  setBailoutLinks(list) { this.bailoutLinks = list || []; }
+
   // ---------- tiles ----------
   _tile(z, x, y) {
     const n = Math.pow(2, z);
@@ -214,6 +218,7 @@ export class TrailMap {
     this._prune(visible);
 
     this._drawRoute(ctx);
+    this._drawBailoutLinks(ctx);
     this._drawBailouts(ctx);
     this._drawTurnaround(ctx);
     this._drawPosition(ctx);
@@ -306,6 +311,24 @@ export class TrailMap {
     ctx.fill();
     ctx.fillStyle = color || "#e9eefc";
     ctx.fillText(text, x + padX, y + 1);
+  }
+
+  _drawBailoutLinks(ctx) {
+    if (!this.bailoutLinks.length) return;
+    ctx.save();
+    ctx.setLineDash([6, 5]);
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < this.bailoutLinks.length; i++) {
+      const link = this.bailoutLinks[i];
+      const a = this.project(link.from.lat, link.from.lon);
+      const b = this.project(link.to.lat, link.to.lon);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = link.reachable === false ? "#6d5b8699" : "#c084fc99";
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   _drawBailouts(ctx) {
