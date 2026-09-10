@@ -1,7 +1,8 @@
 // Elevation profile canvas: gradient area chart with the live position, the
 // turnaround point and bailout ticks. Supports scrubbing by pointer.
+import { minutesAtDistance } from "../core/pace.js";
 
-const PAD = { l: 46, r: 14, t: 14, b: 22 };
+const PAD = { l: 46, r: 14, t: 14, b: 34 };
 
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
@@ -13,6 +14,8 @@ export class ElevationProfile {
     this.positionDist = 0;
     this.turnaroundDist = null;
     this.bailouts = [];
+    this.schedule = null;
+    this.startMs = null;
     this.hoverX = null;
     this.width = 400;
     this.height = 120;
@@ -43,6 +46,8 @@ export class ElevationProfile {
     if (o.turnaroundDist !== undefined) this.turnaroundDist = o.turnaroundDist;
     if (o.bailouts !== undefined) this.bailouts = o.bailouts;
     if (o.positionDist !== undefined) this.positionDist = o.positionDist;
+    if (o.schedule !== undefined) this.schedule = o.schedule;
+    if (o.startMs !== undefined) this.startMs = o.startMs;
     this.render();
   }
 
@@ -107,7 +112,17 @@ export class ElevationProfile {
       const d = (this.profile.distanceM * i) / steps;
       const x = this._x(d);
       const label = (d / 1000).toFixed(totalKm > 8 ? 0 : 1) + "km";
-      ctx.fillText(label, x, this.height - 7);
+      ctx.fillText(label, x, this.height - 20);
+      // Planned clock time at this distance, from the outbound schedule.
+      if (this.schedule && this.startMs != null) {
+        const mins = minutesAtDistance(this.schedule, d);
+        const at = new Date(this.startMs + mins * 60000);
+        const hh = String(at.getHours()).padStart(2, "0");
+        const mm = String(at.getMinutes()).padStart(2, "0");
+        ctx.fillStyle = "#557099";
+        ctx.fillText(hh + ":" + mm, x, this.height - 6);
+        ctx.fillStyle = "#61789f";
+      }
     }
 
     // full area, muted
