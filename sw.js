@@ -1,8 +1,20 @@
 // Offline shell for Lastlight: cache-first for the app, stale-while-revalidate
 // for map tiles, so the app opens with no signal.
-const VERSION = "lastlight-v1";
+const VERSION = "lastlight-v3";
 const SHELL_CACHE = VERSION + "-shell";
 const TILE_CACHE = VERSION + "-tiles";
+// A 1x1 transparent PNG, served in place of a tile that cannot be fetched so
+// the map degrades quietly instead of logging errors.
+const BLANK_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+let blankResponse = null;
+function blankTile() {
+  if (!blankResponse) {
+    const bytes = Uint8Array.from(atob(BLANK_PNG), function (c) { return c.charCodeAt(0); });
+    blankResponse = new Response(bytes, { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } });
+  }
+  return blankResponse;
+}
+
 const SHELL = [
   "./",
   "index.html",
@@ -14,18 +26,28 @@ const SHELL = [
   "src/core/pace.js",
   "src/core/solar.js",
   "src/core/turnaround.js",
+  "src/core/planning.js",
+  "src/core/calibrate.js",
   "src/core/gpx.js",
   "src/data/sample-routes.js",
+  "src/services/storage.js",
+  "src/services/weather.js",
+  "src/services/location.js",
   "src/ui/store.js",
   "src/ui/map.js",
   "src/ui/profile.js",
+  "src/ui/sharecard.js",
   "src/ui/format.js",
 ];
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(SHELL_CACHE).then(function (cache) {
-      return cache.addAll(SHELL.map(function (p) { return new Request(p, { cache: "reload" }); }));
+      // Add each entry separately: one unreachable file must not abort the
+      // whole install and leave the app uncacheable.
+      return Promise.all(SHELL.map(function (p) {
+        return cache.add(new Request(p, { cache: "reload" })).catch(function () {});
+      }));
     }).then(function () { return self.skipWaiting(); })
   );
 });
@@ -66,7 +88,7 @@ self.addEventListener("fetch", function (event) {
           const copy = response.clone();
           caches.open(TILE_CACHE).then(function (cache) { cache.put(request, copy); });
           return response;
-        }).catch(function () { return cached; });
+        }).catch(function () { return cached || blankTile(); });
         return cached || network;
       })
     );
