@@ -3,7 +3,7 @@
 // nearest bailout is.
 
 import { haversineMeters, clamp } from "./geo.js";
-import { buildSchedule, minutesAtDistance, sanitizePace, movingMinutes, elapsedMinutes } from "./pace.js";
+import { buildSchedule, minutesAtDistance, sanitizePace, elapsedMinutes, toblerSpeedKph } from "./pace.js";
 
 export const VERDICT = Object.freeze({
   GO: "go",
@@ -121,15 +121,25 @@ export function analyzeOutAndBack(profile, options) {
 
 // Estimate time to leave the route for an off-trail bailout point. A detour
 // factor inflates straight-line distance to account for terrain and finding a
-// line; descent is treated as slightly faster, ascent fully penalised.
+// line, and the signed elevation change feeds Tobler's function so a steep
+// scramble down is realistically slower than an easy traverse.
 export function estimateBailoutMinutes(fromPoint, bailout, pace, detourFactor) {
+  const p = sanitizePace(pace);
   const factor = detourFactor == null ? 1.35 : detourFactor;
   const straight = haversineMeters(fromPoint, bailout);
   const distanceM = straight * factor;
-  const dropM = (Number(fromPoint.ele) || 0) - (Number(bailout.ele) || 0);
-  const ascent = dropM < 0 ? -dropM : 0;
-  const moving = movingMinutes(distanceM, ascent, pace);
-  return { distanceM: distanceM, straightLineM: straight, ascentM: ascent, minutes: elapsedMinutes(moving, pace) };
+  const changeM = (Number(bailout.ele) || 0) - (Number(fromPoint.ele) || 0);
+  const grade = distanceM > 0 ? changeM / distanceM : 0;
+  const speedKph = Math.max(p.minSpeedKph, toblerSpeedKph(grade) * p.speedFactor);
+  const moving = distanceM > 0 ? (distanceM / 1000) / speedKph * 60 : 0;
+  return {
+    distanceM: distanceM,
+    straightLineM: straight,
+    ascentM: changeM > 0 ? changeM : 0,
+    descentM: changeM < 0 ? -changeM : 0,
+    grade: grade,
+    minutes: elapsedMinutes(moving, p),
+  };
 }
 
 // Rank bailout options by whether they can be reached before dusk.
