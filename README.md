@@ -58,6 +58,9 @@ npm test      # 28 unit tests, no dependencies
 npm start     # serve the app locally on http://localhost:5173
 ```
 
+The app is deployed to GitHub Pages from the \`main\` branch root. See
+[docs/CI.md](docs/CI.md) to enable the optional CI and Pages workflows.
+
 Requires Node 20 or newer. There are no runtime dependencies.
 
 ## Roadmap
