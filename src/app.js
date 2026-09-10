@@ -12,6 +12,7 @@ import {
   fmtKm, fmtMeters, fmtDuration, fmtCountdown, fmtClock, fmtDayMonth,
   dateToInputValue, timeToInputValue, inputValueToDate, verdictLabel,
 } from "./ui/format.js";
+import { listTrips, saveTrip, deleteTrip, saveSession, loadSession, normalizeTrip, tripSummary } from "./services/storage.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,6 +27,7 @@ function todayAt(hour) {
 const DEFAULT_ROUTE = findRoute("holdsworth");
 
 const store = createStore({
+  savedId: null,
   routeId: DEFAULT_ROUTE.id,
   routeName: DEFAULT_ROUTE.name,
   track: DEFAULT_ROUTE.track,
@@ -424,6 +426,7 @@ function setMode(mode) {
 function loadRoute(route, fit) {
   stopHike();
   store.set({
+    savedId: null,
     routeId: route.id, routeName: route.name, track: route.track,
     bailoutPoints: (route.bailouts || []).slice(),
     mode: route.mode || "out-and-back",
@@ -623,6 +626,33 @@ function wire() {
     $("status").textContent = "Route cleared. Draw one on the map or import a GPX.";
   });
 
+  $("btn-save-trip").addEventListener("click", async function () {
+    const s = store.get();
+    if (!s.track || s.track.length < 2) { $("status").textContent = "Nothing to save yet."; return; }
+    const name = ($("trip-name").value || s.routeName || "Untitled trip").trim();
+    try {
+      const saved = await saveTrip(Object.assign(snapshotTrip(s), { id: s.savedId || undefined, routeName: name }));
+      store.set({ savedId: saved.id, routeName: saved.routeName });
+      await renderTripList();
+      $("status").textContent = "Saved \"" + saved.routeName + "\".";
+    } catch (err) {
+      $("status").textContent = "Save failed: " + err.message;
+    }
+  });
+  $("trip-list").addEventListener("click", async function (ev) {
+    const btn = ev.target.closest("button[data-action]");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (btn.dataset.action === "load") {
+      const trip = tripCache.find(function (t) { return t.id === id; });
+      if (trip && applyTrip(trip, true)) $("status").textContent = "Loaded \"" + trip.routeName + "\".";
+    } else if (btn.dataset.action === "delete") {
+      await deleteTrip(id);
+      await renderTripList();
+      $("status").textContent = "Deleted saved trip.";
+    }
+  });
+
   $("network-pill").hidden = navigator.onLine;
   window.addEventListener("online", function () { $("network-pill").hidden = true; });
   window.addEventListener("offline", function () { $("network-pill").hidden = false; });
@@ -656,15 +686,139 @@ function fallbackEle(i, n) {
 }
 
 // ---------------------------------------------------------------------------
+// Persistence: saved trips and session restore
+// ---------------------------------------------------------------------------
+function snapshotTrip(s) {
+  return {
+    id: s.savedId || undefined,
+    routeName: s.routeName,
+    mode: s.mode,
+    track: s.track,
+    bailoutPoints: s.bailoutPoints,
+    pace: s.pace,
+    safetyMargin: s.safetyMargin,
+    useCivil: s.useCivil,
+    startTime: s.startTime.toISOString(),
+  };
+}
+
+function tripPayload(s) {
+  return (s.track || []).map(function (p) { return { lat: p.lat, lon: p.lon, ele: p.ele }; });
+}
+
+function setRangeValue(el, value) {
+  if (!el) return;
+  el.value = String(value);
+  el.dispatchEvent(new Event("input"));
+}
+
+function syncControlsFromState(s) {
+  $("start-date").value = dateToInputValue(s.startTime);
+  $("start-time").value = timeToInputValue(s.startTime);
+  $("use-civil").checked = s.useCivil;
+  setRangeValue($("speed-factor"), s.pace.speedFactor);
+  setRangeValue($("moving-ratio"), s.pace.movingRatio);
+  setRangeValue($("safety-margin"), s.safetyMargin);
+  setRangeValue($("delay"), s.delay || 0);
+}
+
+function applyTrip(raw, fit) {
+  let trip;
+  try { trip = normalizeTrip(raw); } catch (err) {
+    $("status").textContent = "Cannot load trip: " + err.message;
+    return false;
+  }
+  stopHike();
+  store.set({
+    savedId: trip.id,
+    routeId: "saved",
+    routeName: trip.routeName,
+    track: trip.track,
+    bailoutPoints: trip.bailoutPoints,
+    mode: trip.mode,
+    pace: trip.pace,
+    safetyMargin: trip.safetyMargin,
+    useCivil: trip.useCivil,
+    startTime: trip.startTime ? new Date(trip.startTime) : store.get().startTime,
+    distanceNow: 0, delay: 0, simElapsed: 0, running: false,
+  });
+  $("trip-name").value = trip.routeName;
+  syncControlsFromState(store.get());
+  $("btn-hike").textContent = "\u25b6 Run hike";
+  Array.prototype.forEach.call($("mode-buttons").children, function (b) {
+    b.classList.toggle("is-active", b.dataset.mode === trip.mode);
+  });
+  if (fit !== false && map) { map.fitTo(trip.track); map.render(); }
+  return true;
+}
+
+let persistTimer = null;
+function persistSession(s) {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(function () {
+    saveSession({
+      routeId: s.routeId, routeName: s.routeName, mode: s.mode,
+      track: tripPayload(s), bailoutPoints: s.bailoutPoints, pace: s.pace,
+      safetyMargin: s.safetyMargin, useCivil: s.useCivil,
+      startTime: s.startTime.toISOString(),
+    });
+  }, 500);
+}
+
+let tripCache = [];
+async function renderTripList() {
+  const list = $("trip-list");
+  try { tripCache = await listTrips(); } catch (err) { tripCache = []; }
+  if (!tripCache.length) {
+    list.innerHTML = '<li class="empty">No saved trips yet.</li>';
+    return;
+  }
+  list.innerHTML = "";
+  tripCache.forEach(function (t) {
+    const li = document.createElement("li");
+    const meta = document.createElement("div");
+    meta.className = "trip-meta";
+    const strong = document.createElement("strong");
+    strong.textContent = t.routeName;
+    const small = document.createElement("small");
+    small.textContent = fmtKm(tripSummary(t).distanceM, 1) + " \u00b7 " +
+      (t.mode === "loop" ? "thru" : "out & back") + " \u00b7 " +
+      String(t.updatedAt || t.createdAt || "").slice(0, 10);
+    meta.appendChild(strong);
+    meta.appendChild(small);
+    const load = document.createElement("button");
+    load.className = "btn small";
+    load.textContent = "Load";
+    load.dataset.action = "load";
+    load.dataset.id = t.id;
+    const del = document.createElement("button");
+    del.className = "btn small danger";
+    del.textContent = "\u2715";
+    del.dataset.action = "delete";
+    del.dataset.id = t.id;
+    li.appendChild(meta);
+    li.appendChild(load);
+    li.appendChild(del);
+    list.appendChild(li);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
 function boot() {
   map = new TrailMap($("map"), { center: { lat: -40.88, lon: 175.48 }, zoom: 13 });
   profileChart = new ElevationProfile($("profile"));
   wire();
-  loadRoute(DEFAULT_ROUTE, true);
+  const session = loadSession();
+  if (!session || !applyTrip(session, true)) {
+    loadRoute(DEFAULT_ROUTE, true);
+    $("trip-name").value = DEFAULT_ROUTE.name;
+  }
   store.subscribe(render);
+  store.subscribe(persistSession);
   render();
+  renderTripList();
   // Register the service worker for offline use, but never on localhost where
   // it would fight the dev server.
   if ("serviceWorker" in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {

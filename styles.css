@@ -286,6 +286,15 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .pill { background: #1c2e4d; color: var(--muted); border-radius: 999px; padding: 2px 8px; font-size: 10.5px; letter-spacing: 0; }
 
 /* ---------- bailouts ---------- */
+.save-row { display: flex; gap: 8px; }
+.save-row input { flex: 1; }
+.trip-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 190px; overflow-y: auto; }
+.trip-list li { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-soft); border-radius: 10px; padding: 7px 9px; background: #0b1526; }
+.trip-list li.empty { border: 0; background: transparent; padding: 2px 0; }
+.trip-list .trip-meta { flex: 1; min-width: 0; }
+.trip-list .trip-meta strong { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trip-list .trip-meta small { color: var(--faint); font-size: 10.5px; }
+
 .bailout-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
 .bailout-list li {
   border: 1px solid var(--line-soft); border-radius: 11px; padding: 9px 11px; background: #0b1526;
