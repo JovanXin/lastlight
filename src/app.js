@@ -384,7 +384,9 @@ function renderBailouts(s) {
     eta.innerHTML = "<b>" + fmtDuration(b.minutes) + "</b><small>" + (b.reachable ? "in time" : "too late") + "</small>";
     const detail = document.createElement("span");
     detail.className = "bailout-detail";
-    detail.textContent = fmtKm(b.straightLineM, 2) + " away · " + (b.ascentM > 5 ? "+" + Math.round(b.ascentM) + " m" : "descent") +
+    const relief = b.ascentM > 5 ? "+" + Math.round(b.ascentM) + " m climb"
+      : (b.descentM > 5 ? "-" + Math.round(b.descentM) + " m drop" : "flat");
+    detail.textContent = fmtKm(b.straightLineM, 2) + " away · " + relief +
       (b.slackMinutes != null ? " · slack " + fmtDuration(b.slackMinutes) : "");
     li.appendChild(name);
     li.appendChild(eta);
