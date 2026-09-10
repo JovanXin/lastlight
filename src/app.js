@@ -6,6 +6,7 @@ import { sunTimes } from "./core/solar.js";
 import { totalPlanMinutes, latestStart, feasibleFinish, darknessAt } from "./core/planning.js";
 import { calibrateSpeedFactor, plannedMinutes, paceDelta } from "./core/calibrate.js";
 import { parseGpx, toGpx } from "./core/gpx.js";
+import { buildCueSheet, formatCueSheetText } from "./core/cuesheet.js";
 import { SAMPLE_ROUTES, findRoute, buildTrack } from "./data/sample-routes.js";
 import { createStore } from "./ui/store.js";
 import { TrailMap } from "./ui/map.js";
@@ -497,6 +498,33 @@ function populatePrintPlan() {
   try { $("print-profile").src = profileChart.toDataUrl(); } catch (err) { /* ignore */ }
 }
 
+// The cue list for the current plan: kilometre marks, turnaround and escapes.
+function currentCues(s) {
+  if (!derived || derived.empty) return [];
+  return buildCueSheet(derived.profile, derived.outbound, {
+    intervalM: 1000,
+    startMs: s.startTime.getTime(),
+    turnaroundDistanceM: s.mode === "out-and-back" ? derived.turnDist : null,
+    bailouts: derived.bailouts.map(function (b) { return { name: b.bailout.name, routeDist: b.routeDist }; }),
+  });
+}
+
+function cueName(cue) {
+  if (cue.name) return cue.name;
+  if (cue.kind === "km") return (cue.distanceM / 1000).toFixed(1) + " km";
+  return cue.kind;
+}
+
+function downloadText(text, filename) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function shareModel(s) {
   const a = derived.analysis;
   const g = sumGain(derived.profile);
@@ -949,7 +977,10 @@ function wire() {
   });
   $("btn-export").addEventListener("click", function () {
     const s = store.get();
-    const xml = toGpx(s.track, { name: s.routeName, description: "Exported from Lastlight" });
+    const waypoints = currentCues(s).map(function (c) {
+      return { lat: c.lat, lon: c.lon, ele: c.ele, name: cueName(c), desc: c.at ? "Planned " + fmtClock(c.at) : "" };
+    });
+    const xml = toGpx(s.track, { name: s.routeName, description: "Exported from Lastlight", waypoints: waypoints });
     const blob = new Blob([xml], { type: "application/gpx+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1014,6 +1045,14 @@ function wire() {
     window.print();
   });
   window.addEventListener("beforeprint", populatePrintPlan);
+  $("btn-cuesheet").addEventListener("click", function () {
+    const s = store.get();
+    if (derived.empty) { flashStatus("Load a route first."); return; }
+    const cues = currentCues(s);
+    downloadText(formatCueSheetText(cues, { routeName: s.routeName, mode: s.mode }),
+      (s.routeName || "route").toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-cue-sheet.txt");
+    flashStatus("Downloaded a cue sheet with " + cues.length + " points.");
+  });
 
   $("btn-share").addEventListener("click", function () {
     shareData = shareModel(store.get());

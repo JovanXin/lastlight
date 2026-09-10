@@ -70,10 +70,20 @@ export function toGpx(points, meta) {
     "    <name>" + esc(m.name || "Lastlight route") + "</name>",
     m.description ? "    <desc>" + esc(m.description) + "</desc>" : null,
     "  </metadata>",
-    "  <trk>",
-    "    <name>" + esc(m.name || "Lastlight route") + "</name>",
-    "    <trkseg>",
   ].filter(Boolean);
+
+  // Waypoints carry the cue sheet: kilometre marks, the turnaround and any
+  // escape points, so a watch can show them.
+  (m.waypoints || []).forEach(function (w) {
+    if (!Number.isFinite(Number(w.lat)) || !Number.isFinite(Number(w.lon))) return;
+    lines.push('  <wpt lat="' + w.lat + '" lon="' + w.lon + '">');
+    if (Number.isFinite(Number(w.ele))) lines.push("    <ele>" + Number(w.ele) + "</ele>");
+    if (w.name) lines.push("    <name>" + esc(w.name) + "</name>");
+    if (w.desc) lines.push("    <desc>" + esc(w.desc) + "</desc>");
+    lines.push("  </wpt>");
+  });
+
+  lines.push("  <trk>", "    <name>" + esc(m.name || "Lastlight route") + "</name>", "    <trkseg>");
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     lines.push('      <trkpt lat="' + p.lat + '" lon="' + p.lon + '">');

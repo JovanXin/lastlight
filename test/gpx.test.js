@@ -37,6 +37,22 @@ test("toGpx round-trips through parseGpx", function () {
   assert.equal(back.points[1].ele, 180);
 });
 
+test("toGpx writes waypoints and parseGpx reads them back", function () {
+  const points = [{ lat: -36.8, lon: 174.7, ele: 120 }, { lat: -36.81, lon: 174.71, ele: 180 }];
+  const xml = toGpx(points, {
+    name: "Cue test",
+    waypoints: [
+      { lat: -36.805, lon: 174.705, ele: 150, name: "1.0 km", desc: "Planned 09:12" },
+      { lat: -36.81, lon: 174.71, ele: 180, name: "Turnaround" },
+    ],
+  });
+  assert.ok(xml.includes("<wpt lat=\"-36.805\" lon=\"174.705\">"));
+  assert.ok(xml.includes("<name>Turnaround</name>"));
+  const back = parseGpx(xml);
+  assert.equal(back.points.length, 4);
+  assert.ok(back.points.some(function (p) { return p.name === "1.0 km"; }));
+});
+
 test("parseGpx rejects non-string input", function () {
   assert.throws(function () { parseGpx(null); }, TypeError);
 });
