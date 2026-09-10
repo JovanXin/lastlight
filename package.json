@@ -1,0 +1,16 @@
+{
+  "name": "lastlight",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline-first hiking turnaround and bailout intelligence.",
+  "homepage": "https://jovanxin.github.io/lastlight/",
+  "scripts": {
+    "test": "node --test",
+    "start": "node scripts/dev-server.mjs",
+    "check": "node --check src/core/geo.js && node --check src/core/pace.js && node --check src/core/solar.js && node --check src/core/turnaround.js && node --check src/core/gpx.js"
+  },
+  "keywords": ["hiking", "safety", "turnaround", "offline-first", "pwa", "gpx"],
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}

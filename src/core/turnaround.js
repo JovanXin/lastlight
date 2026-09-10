@@ -1,0 +1,186 @@
+// The heart of Lastlight: given where you are, what time it is, and when the
+// light runs out, decide how much further you can safely go and where your
+// nearest bailout is.
+
+import { haversineMeters, clamp } from "./geo.js";
+import { buildSchedule, minutesAtDistance, sanitizePace, movingMinutes, elapsedMinutes } from "./pace.js";
+
+export const VERDICT = Object.freeze({
+  GO: "go",
+  CAUTION: "caution",
+  TURN: "turn",
+  PAST: "past",
+});
+
+// Time to walk from a point at `distanceM` back to the trailhead. The inbound
+// schedule walks from the far end towards the start, so its remaining time is
+// the total minus the time already spent reaching that distance.
+export function returnMinutesAt(inbound, distanceM) {
+  return Math.max(0, inbound.totalMinutes - minutesAtDistance(inbound, distanceM));
+}
+
+function toMs(value, fallback) {
+  if (value == null) return fallback;
+  if (value instanceof Date) return value.getTime();
+  return Number(value);
+}
+
+// Scan the outbound schedule for the furthest point you can still reach and
+// return from before (dusk - margin). O(n), monotone by construction.
+export function findTurnaroundDistance(outbound, inbound, options) {
+  const opts = options || {};
+  const budget = opts.budgetMinutes;
+  const pts = outbound.points;
+  let best = { distanceM: 0, outboundMinutes: 0, returnMinutes: returnMinutesAt(inbound, 0) };
+  for (let i = 0; i < pts.length; i++) {
+    const d = pts[i].dist;
+    const out = outbound.cumulativeMinutes[i];
+    const back = returnMinutesAt(inbound, d);
+    if (out + back <= budget) {
+      best = { distanceM: d, outboundMinutes: out, returnMinutes: back };
+    } else {
+      break;
+    }
+  }
+  return best;
+}
+
+// Full out-and-back assessment used by the live HUD.
+export function analyzeOutAndBack(profile, options) {
+  const opts = options || {};
+  const pace = sanitizePace(opts.pace);
+  const startMs = toMs(opts.startTime, Date.now());
+  const nowMs = toMs(opts.now, startMs);
+  const duskMs = toMs(opts.dusk, null);
+  const margin = opts.safetyMarginMinutes == null ? 30 : Number(opts.safetyMarginMinutes);
+  const distanceNowM = clamp(Number(opts.distanceNowM) || 0, 0, profile.distanceM);
+
+  const outbound = buildSchedule(profile, pace);
+  const inbound = buildSchedule(profile, pace, { reverse: true });
+
+  const availableMinutes = duskMs == null ? Infinity : Math.max(0, (duskMs - startMs) / 60000);
+  const budget = availableMinutes - margin;
+  const turnaround = duskMs == null
+    ? { distanceM: profile.distanceM, outboundMinutes: outbound.totalMinutes, returnMinutes: inbound.totalMinutes }
+    : findTurnaroundDistance(outbound, inbound, { budgetMinutes: budget });
+
+  const outboundAtNow = minutesAtDistance(outbound, distanceNowM);
+  const returnFromNow = returnMinutesAt(inbound, distanceNowM);
+  const elapsedNow = (nowMs - startMs) / 60000;
+  const projectedFinishMinutes = outbound.totalMinutes + inbound.totalMinutes;
+
+  // Latest clock time you may start heading back from where you stand now.
+  const turnAroundTimeMs = duskMs == null ? null : duskMs - margin * 60000 - returnFromNow * 60000;
+  const minutesUntilTurn = turnAroundTimeMs == null ? null : (turnAroundTimeMs - nowMs) / 60000;
+
+  let verdict = VERDICT.GO;
+  if (minutesUntilTurn == null) {
+    verdict = VERDICT.GO;
+  } else if (minutesUntilTurn <= 0) {
+    verdict = VERDICT.PAST;
+  } else if (minutesUntilTurn <= Math.max(10, margin / 3)) {
+    verdict = VERDICT.TURN;
+  } else if (minutesUntilTurn <= Math.max(25, margin)) {
+    verdict = VERDICT.CAUTION;
+  }
+
+  // If the whole trip cannot fit in the day from the start, say so.
+  const wholeTripFits = duskMs == null ? true : projectedFinishMinutes + margin <= availableMinutes;
+
+  return {
+    pace: pace,
+    distanceNowM: distanceNowM,
+    distanceTotalM: profile.distanceM,
+    outboundMinutesAtNow: outboundAtNow,
+    returnMinutesFromNow: returnFromNow,
+    elapsedMinutes: elapsedNow,
+    remainingOutboundMinutes: outbound.totalMinutes - outboundAtNow,
+    projectedFinishMinutes: projectedFinishMinutes,
+    availableMinutes: availableMinutes,
+    budgetMinutes: budget,
+    travelBudgetMinutes: projectedFinishMinutes + margin,
+    turnaroundDistanceM: turnaround.distanceM,
+    turnaroundFromStartM: turnaround.distanceM,
+    turnaroundTime: turnAroundTimeMs == null ? null : new Date(turnAroundTimeMs),
+    minutesUntilTurnaround: minutesUntilTurn,
+    verdict: verdict,
+    wholeTripFits: wholeTripFits,
+    schedules: { outbound: outbound, inbound: inbound },
+  };
+}
+
+// Estimate time to leave the route for an off-trail bailout point. A detour
+// factor inflates straight-line distance to account for terrain and finding a
+// line; descent is treated as slightly faster, ascent fully penalised.
+export function estimateBailoutMinutes(fromPoint, bailout, pace, detourFactor) {
+  const factor = detourFactor == null ? 1.35 : detourFactor;
+  const straight = haversineMeters(fromPoint, bailout);
+  const distanceM = straight * factor;
+  const dropM = (Number(fromPoint.ele) || 0) - (Number(bailout.ele) || 0);
+  const ascent = dropM < 0 ? -dropM : 0;
+  const moving = movingMinutes(distanceM, ascent, pace);
+  return { distanceM: distanceM, straightLineM: straight, ascentM: ascent, minutes: elapsedMinutes(moving, pace) };
+}
+
+// Rank bailout options by whether they can be reached before dusk.
+export function analyzeBailouts(fromPoint, bailouts, options) {
+  const opts = options || {};
+  const pace = sanitizePace(opts.pace);
+  const nowMs = toMs(opts.now, Date.now());
+  const duskMs = toMs(opts.dusk, null);
+  const margin = opts.safetyMarginMinutes == null ? 30 : Number(opts.safetyMarginMinutes);
+  const deadlineMs = duskMs == null ? Infinity : duskMs - margin * 60000;
+  const list = (bailouts || []).map(function (b) {
+    const est = estimateBailoutMinutes(fromPoint, b, pace, opts.detourFactor);
+    const arriveMs = nowMs + est.minutes * 60000;
+    const slackMinutes = (deadlineMs - arriveMs) / 60000;
+    return Object.assign({ bailout: b }, est, {
+      arriveAt: new Date(arriveMs),
+      slackMinutes: isFinite(slackMinutes) ? slackMinutes : null,
+      reachable: arriveMs <= deadlineMs,
+    });
+  });
+  list.sort(function (a, b) { return a.minutes - b.minutes; });
+  return list;
+}
+
+// Loop / thru-hike assessment: there is no turn-around, only a required pace.
+export function analyzeLoop(profile, options) {
+  const opts = options || {};
+  const pace = sanitizePace(opts.pace);
+  const startMs = toMs(opts.startTime, Date.now());
+  const nowMs = toMs(opts.now, startMs);
+  const duskMs = toMs(opts.dusk, null);
+  const margin = opts.safetyMarginMinutes == null ? 30 : Number(opts.safetyMarginMinutes);
+  const distanceNowM = clamp(Number(opts.distanceNowM) || 0, 0, profile.distanceM);
+
+  const schedule = buildSchedule(profile, pace);
+  const plannedMinutes = schedule.totalMinutes;
+  const remainingDistance = Math.max(0, profile.distanceM - distanceNowM);
+  const remainingMinutes = Math.max(0, plannedMinutes - minutesAtDistance(schedule, distanceNowM));
+  const elapsedNow = (nowMs - startMs) / 60000;
+  const daylightLeft = duskMs == null ? Infinity : (duskMs - nowMs) / 60000 - margin;
+  const slackMinutes = daylightLeft - remainingMinutes;
+  // Required moving speed to finish inside the remaining daylight.
+  const requiredMoving = remainingMinutes > 0 ? pace.movingRatio : 0;
+  const requiredSpeedup = remainingMinutes > 0 && daylightLeft > 0 ? remainingMinutes / daylightLeft : Infinity;
+
+  let verdict = VERDICT.GO;
+  if (slackMinutes < 0) verdict = VERDICT.PAST;
+  else if (slackMinutes < plannedMinutes * 0.1) verdict = VERDICT.TURN;
+  else if (slackMinutes < plannedMinutes * 0.2) verdict = VERDICT.CAUTION;
+
+  return {
+    pace: pace,
+    plannedMinutes: plannedMinutes,
+    elapsedMinutes: elapsedNow,
+    remainingMinutes: remainingMinutes,
+    remainingDistanceM: remainingDistance,
+    daylightLeftMinutes: daylightLeft,
+    slackMinutes: slackMinutes,
+    requiredPaceFactor: requiredSpeedup,
+    requiredMovingRatio: requiredMoving,
+    verdict: verdict,
+    schedule: schedule,
+  };
+}
