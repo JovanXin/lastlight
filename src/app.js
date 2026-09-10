@@ -650,6 +650,12 @@ function wire() {
   $("locate-btn").addEventListener("click", function () {
     if (store.get().live) stopLive(); else startLive();
   });
+  let mapStyle = "dark";
+  $("map-style").addEventListener("click", function () {
+    mapStyle = mapStyle === "dark" ? "terrain" : "dark";
+    map.setStyle(mapStyle);
+    flashStatus("Map style: " + (mapStyle === "dark" ? "night" : "terrain") + ".");
+  });
   $("zoom-in").addEventListener("click", function () { map.zoomBy(1); });
   $("zoom-out").addEventListener("click", function () { map.zoomBy(-1); });
   const fit = function () { map.fitTo(derived ? derived.profile.points : store.get().track); map.render(); };
